@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#24382c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
 <title>Grzybownik</title>
 <style>
 /* Układ: jedna kolumna pod telefon; na górze ocena dnia, niżej przebieg 17 dni, składniki i parametry modelu. */
@@ -63,6 +66,31 @@ ul.season li{display:flex;justify-content:space-between;gap:12px}
 ul.season span{color:var(--mute)}
 ul.season li.on b::after{content:" • w sezonie";color:var(--moss);font-weight:400;font-size:.78rem}
 [hidden]{display:none!important}
+body{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 84px)}
+.view{display:flex;flex-direction:column;gap:20px}
+.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);z-index:1000}
+.tabs a{flex:1;text-align:center;padding:14px 8px;color:var(--mute);text-decoration:none;font-weight:600;font-size:.92rem;border-top:3px solid transparent;margin-top:-1px}
+.tabs a.on{color:var(--pine);border-top-color:var(--moss)}
+.form{display:flex;flex-direction:column;gap:8px}
+.form label,.lab{font-size:.88rem;margin-top:6px}
+.form input,.form textarea{text-align:left}
+textarea{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);resize:vertical}
+.form .row{margin-top:6px;flex-wrap:wrap}
+.seg{display:grid;grid-template-columns:6.2rem repeat(6,1fr);gap:4px;align-items:center;margin-top:8px;font-size:.88rem}
+.seg label{margin:0;position:relative}
+.seg input{position:absolute;opacity:0;width:1px;height:1px}
+.seg span{display:block;text-align:center;padding:9px 0;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.seg input:checked+span{background:var(--pine);color:var(--bg);border-color:var(--pine);font-weight:700}
+.seg input:focus-visible+span{outline:2px solid var(--cap);outline-offset:2px}
+#map{height:280px;border-radius:8px;border:1px solid var(--line);margin-top:10px;z-index:0}
+.err-text{color:var(--cap)}
+.entry{padding:12px 0;border-top:1px solid var(--line);display:grid;gap:4px}
+.entry:first-child{border-top:0;padding-top:0}
+.entry .head{display:flex;justify-content:space-between;gap:12px;font-weight:600}
+.entry .head .num{white-space:nowrap}
+.entry .meta{font-size:.82rem;color:var(--mute)}
+.entry button{justify-self:start;padding:6px 10px;font-size:.8rem;margin-top:4px}
+.empty{color:var(--mute);font-size:.9rem;margin:0}
 </style>
 </head>
 <body>
@@ -71,6 +99,7 @@ ul.season li.on b::after{content:" • w sezonie";color:var(--moss);font-weight:
 
 <section id="error" class="err" hidden></section>
 
+<div id="viewW" class="view">
 <section id="todayBox" aria-live="polite">
   <h2>Warunki dziś</h2>
   <div class="today"><span class="score num" id="score">–</span><div><div class="verdict" id="verdict">Pobieram dane…</div><div class="of">wskaźnik 0–100</div></div></div>
@@ -110,7 +139,34 @@ ul.season li.on b::after{content:" • w sezonie";color:var(--moss);font-weight:
 </section>
 
 <p class="note" id="stamp" style="text-align:center"></p>
+</div>
+
+<div id="viewJ" class="view" hidden>
+<section>
+  <h2>Nowy wpis</h2>
+  <form id="jform" class="form" novalidate>
+    <label for="jDate">Data wyjazdu</label><input id="jDate" type="date" required>
+    <label for="jPlace">Nazwa miejsca (opcjonalnie)</label><input id="jPlace" type="text" maxlength="60" placeholder="np. las za Brochowem" autocomplete="off">
+    <div><span class="lab">Lokalizacja</span>
+      <div class="row"><button type="button" id="jGps">Użyj mojej pozycji</button><button type="button" id="jPick">Wskaż na mapie</button></div>
+      <p class="note num" id="jLoc">Nie wybrano punktu.</p>
+      <div id="mapBox" hidden><div id="map"></div><p class="note" id="mapNote">Dotknij mapy w miejscu zbioru.</p></div>
+    </div>
+    <div><span class="lab">Obfitość: 0 = nic, 5 = wysyp. Wyjazd bez zbiorów też zapisz.</span><div id="jSpecies"></div></div>
+    <label for="jNote">Notatka</label><textarea id="jNote" rows="2" maxlength="300"></textarea>
+    <p class="note err-text" id="jErr" hidden></p>
+    <button class="primary" type="submit">Zapisz wpis</button>
+  </form>
+</section>
+<section>
+  <h2 id="jCount">Wpisy</h2>
+  <div id="jList"></div>
+  <div class="row"><button type="button" id="jExport">Eksportuj CSV</button></div>
+  <p class="note" id="jInfo">Wpisy są zapisane tylko w tym telefonie. Eksportuj je co jakiś czas, żeby mieć kopię.</p>
+</section>
+</div>
 </main>
+<nav class="tabs" aria-label="Widoki"><a href="#warunki" id="tabW">Warunki</a><a href="#dziennik" id="tabJ">Dziennik</a></nav>
 
 <script>
 /*CORE-START*/
@@ -214,6 +270,115 @@ if(typeof document!=="undefined"){
   $("apply").addEventListener("click",function(){var p=readInputs();saveP(p);fillInputs(p);render()});
   $("reset").addEventListener("click",function(){saveP(DEFAULTS);fillInputs(DEFAULTS);render()});
   load();
+}
+
+/* ---------- Dziennik zbiorów ---------- */
+var JKEY="grzybownik.journal",SP=[["borowik","Borowik"],["podgrzybek","Podgrzybek"],["kozlarz","Koźlarz"],["kurka","Kurka"]];
+var jPos=null,jMap=null,jMarker=null,armed=null;
+function loadJ(){try{var a=JSON.parse(localStorage.getItem(JKEY)||"[]");return Array.isArray(a)?a:[]}catch(e){return[]}}
+function saveJ(a){try{localStorage.setItem(JKEY,JSON.stringify(a));return true}catch(e){return false}}
+function addDays(s,n){var d=new Date(s+"T12:00:00Z");d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
+function wxUrl(lat,lon,date){
+  var age=Math.round((Date.parse(todayStr())-Date.parse(date))/864e5);
+  var host=age>60?"https://archive-api.open-meteo.com/v1/archive":"https://api.open-meteo.com/v1/forecast";
+  return host+"?latitude="+lat+"&longitude="+lon+"&daily=precipitation_sum,temperature_2m_mean,temperature_2m_min&start_date="+addDays(date,-25)+"&end_date="+date+"&timezone=Europe%2FWarsaw";
+}
+function fillWeather(id){
+  var e=loadJ().filter(function(x){return x.id===id})[0];if(!e||e.wx)return Promise.resolve();
+  return fetch(wxUrl(e.lat,e.lon,e.date)).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json()}).then(function(j){
+    var d=j.daily;if(!d||!d.time||!d.time.length)throw new Error("brak danych");
+    var days=d.time.map(function(x,i){return{date:x,p:d.precipitation_sum[i],tmean:d.temperature_2m_mean[i],tmin:d.temperature_2m_min[i]}});
+    var ev=evaluate(days,days.length-1,DEFAULTS);if(!ev)throw new Error("brak danych");
+    var all=loadJ();all.forEach(function(x){if(x.id===id)x.wx={score:ev.score,p26:Math.round(ev.pSum*10)/10,t20:Math.round(ev.t20*10)/10,tmin10:ev.tminMin,days:days.map(function(y){return[y.p,y.tmean,y.tmin]})}});
+    saveJ(all);renderJ();
+  }).catch(function(){});
+}
+function syncPending(){var p=loadJ().filter(function(x){return !x.wx}),i=0;(function next(){if(i<p.length)fillWeather(p[i++].id).then(next)})()}
+function setPos(lat,lon,src){jPos={lat:Math.round(lat*1e5)/1e5,lon:Math.round(lon*1e5)/1e5};$("jLoc").textContent=fmt(jPos.lat,5)+"°N, "+fmt(jPos.lon,5)+"°E ("+src+")";
+  if(jMap&&window.L){if(jMarker)jMap.removeLayer(jMarker);jMarker=L.circleMarker([jPos.lat,jPos.lon],{radius:9,weight:3,color:"#24382c",fillColor:"#9a5a2b",fillOpacity:1}).addTo(jMap)}}
+function useGps(){
+  if(!navigator.geolocation){$("jLoc").textContent="Ta przeglądarka nie udostępnia pozycji. Wskaż punkt na mapie.";return}
+  $("jLoc").textContent="Ustalam pozycję…";
+  navigator.geolocation.getCurrentPosition(function(p){setPos(p.coords.latitude,p.coords.longitude,"GPS, dokładność ok. "+Math.round(p.coords.accuracy)+" m");if(jMap)jMap.setView([jPos.lat,jPos.lon],14)},
+    function(err){$("jLoc").textContent=err.code===1?"Brak zgody na dostęp do pozycji. Włącz ją w ustawieniach przeglądarki albo wskaż punkt na mapie.":"Nie udało się ustalić pozycji. Spróbuj ponownie na otwartym terenie albo wskaż punkt na mapie."},
+    {enableHighAccuracy:true,timeout:20000,maximumAge:60000});
+}
+function openMap(){
+  $("mapBox").hidden=false;
+  if(jMap){jMap.invalidateSize();return}
+  function init(){jMap=L.map("map").setView(jPos?[jPos.lat,jPos.lon]:[LAT,LON],jPos?14:11);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,attribution:"© OpenStreetMap"}).addTo(jMap);
+    jMap.on("click",function(ev){setPos(ev.latlng.lat,ev.latlng.lng,"punkt z mapy")});if(jPos)setPos(jPos.lat,jPos.lon,"punkt z mapy")}
+  if(window.L){init();return}
+  $("mapNote").textContent="Ładuję mapę…";
+  var css=document.createElement("link");css.rel="stylesheet";css.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";document.head.appendChild(css);
+  var s=document.createElement("script");s.src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+  s.onload=function(){$("mapNote").textContent="Dotknij mapy w miejscu zbioru.";init()};
+  s.onerror=function(){$("mapNote").textContent="Mapa wymaga połączenia z internetem. Bez zasięgu użyj przycisku „Użyj mojej pozycji”."};
+  document.head.appendChild(s);
+}
+function buildSpecies(){var box=$("jSpecies");box.textContent="";SP.forEach(function(s){
+  var row=document.createElement("div");row.className="seg";row.setAttribute("role","radiogroup");row.setAttribute("aria-label",s[1]);
+  var name=document.createElement("span");name.textContent=s[1];name.style.cssText="border:0;background:none;text-align:left;padding:0";row.appendChild(name);
+  for(var v=0;v<=5;v++){var l=document.createElement("label"),i=document.createElement("input"),t=document.createElement("span");
+    i.type="radio";i.name="a_"+s[0];i.value=v;i.id="a_"+s[0]+"_"+v;if(v===0)i.checked=true;t.textContent=v;l.appendChild(i);l.appendChild(t);row.appendChild(l)}
+  box.appendChild(row)})}
+function jError(m){var e=$("jErr");e.textContent=m||"";e.hidden=!m}
+function submitJ(ev){
+  ev.preventDefault();var date=$("jDate").value;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return jError("Podaj datę wyjazdu.");
+  if(date>todayStr())return jError("Data nie może być z przyszłości.");
+  if(!jPos)return jError("Wybierz lokalizację: pozycja z GPS albo punkt na mapie.");
+  var a={};SP.forEach(function(s){var c=document.querySelector('input[name="a_'+s[0]+'"]:checked');a[s[0]]=c?+c.value:0});
+  var e={id:Date.now().toString(36),date:date,place:$("jPlace").value.trim(),lat:jPos.lat,lon:jPos.lon,a:a,note:$("jNote").value.trim(),wx:null};
+  var all=loadJ();all.push(e);all.sort(function(x,y){return x.date<y.date?1:x.date>y.date?-1:(x.id<y.id?1:-1)});
+  if(!saveJ(all))return jError("Nie udało się zapisać wpisu: przeglądarka zablokowała pamięć lokalną.");
+  jError("");$("jPlace").value="";$("jNote").value="";SP.forEach(function(s){$("a_"+s[0]+"_0").checked=true});
+  renderJ();fillWeather(e.id);
+}
+function renderJ(){
+  var all=loadJ(),list=$("jList");list.textContent="";
+  $("jCount").textContent="Wpisy ("+all.length+")";$("jExport").disabled=!all.length;
+  if(!all.length){var p=document.createElement("p");p.className="empty";p.textContent="Brak wpisów. Pierwszy dodasz formularzem powyżej, także po powrocie z lasu.";list.appendChild(p);return}
+  all.forEach(function(e){
+    var d=document.createElement("div");d.className="entry";
+    var h=document.createElement("div");h.className="head";var l=document.createElement("span");
+    l.textContent=new Date(e.date+"T12:00:00").toLocaleDateString("pl-PL",{day:"numeric",month:"long",year:"numeric"})+(e.place?" · "+e.place:"");
+    var r=document.createElement("span");r.className="num";r.textContent=e.wx?"wskaźnik "+e.wx.score:"";h.appendChild(l);h.appendChild(r);d.appendChild(h);
+    var found=SP.filter(function(s){return e.a[s[0]]>0}).map(function(s){return s[1]+" "+e.a[s[0]]+"/5"});
+    var f=document.createElement("div");f.textContent=found.length?found.join(" · "):"Nic nie znaleziono";d.appendChild(f);
+    var m=document.createElement("div");m.className="meta num";
+    m.textContent=fmt(e.lat,5)+"°N, "+fmt(e.lon,5)+"°E · "+(e.wx?"opad 26 dni: "+fmt(e.wx.p26,0)+" mm, temp. 20 dni: "+fmt(e.wx.t20,1)+"°C":"pogoda zostanie dopisana po połączeniu z internetem");d.appendChild(m);
+    if(e.note){var n=document.createElement("div");n.className="meta";n.textContent=e.note;d.appendChild(n)}
+    var b=document.createElement("button");b.type="button";b.textContent=armed===e.id?"Potwierdź usunięcie":"Usuń";
+    b.addEventListener("click",function(){if(armed===e.id){saveJ(loadJ().filter(function(x){return x.id!==e.id}));armed=null}else armed=e.id;renderJ()});
+    d.appendChild(b);list.appendChild(d)});
+}
+function toCsv(all){
+  function q(v){v=v==null?"":String(v);return /[";\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
+  function n(v){return v==null?"":String(v).replace(".",",")}
+  var rows=[["data","miejsce","szerokosc","dlugosc"].concat(SP.map(function(s){return s[0]}),["wskaznik","opad_26d_mm","temp_20d_C","tmin_10d_C","notatka"])];
+  all.forEach(function(e){var w=e.wx||{};rows.push([e.date,e.place,n(e.lat),n(e.lon)].concat(SP.map(function(s){return e.a[s[0]]}),[n(w.score),n(w.p26),n(w.t20),n(w.tmin10),e.note]))});
+  return rows.map(function(r){return r.map(q).join(";")}).join("\r\n");
+}
+function exportJ(){
+  var text="﻿"+toCsv(loadJ()),name="grzybownik-"+todayStr()+".csv",info=$("jInfo");
+  var file=null;try{file=new File([text],name,{type:"text/csv"})}catch(e){}
+  if(file&&navigator.canShare&&navigator.canShare({files:[file]})){navigator.share({files:[file],title:"Grzybownik – dziennik"}).catch(function(){});return}
+  try{var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type:"text/csv;charset=utf-8"}));a.download=name;document.body.appendChild(a);a.click();a.remove();
+    info.textContent="Zapisano plik "+name+". Wpisy nadal pozostają w telefonie."}
+  catch(e){info.textContent="Nie udało się zapisać pliku w tej przeglądarce."}
+}
+function showView(){var j=location.hash==="#dziennik";$("viewJ").hidden=!j;$("viewW").hidden=j;$("tabJ").className=j?"on":"";$("tabW").className=j?"":"on";
+  if(j&&jMap)jMap.invalidateSize();window.scrollTo(0,0)}
+if(typeof document!=="undefined"){
+  buildSpecies();$("jDate").value=todayStr();$("jDate").max=todayStr();
+  $("jGps").addEventListener("click",useGps);$("jPick").addEventListener("click",openMap);
+  $("jform").addEventListener("submit",submitJ);$("jExport").addEventListener("click",exportJ);
+  window.addEventListener("hashchange",showView);window.addEventListener("online",syncPending);
+  showView();renderJ();syncPending();
+  try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
+  if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(function(){});
 }
 </script>
 </body>
