@@ -64,7 +64,7 @@ button.primary{background:var(--pine);color:var(--bg);border-color:var(--pine);f
 ul.season{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:.88rem}
 ul.season li{display:flex;justify-content:space-between;gap:12px}
 ul.season span{color:var(--mute)}
-ul.season li.on b::after{content:" • w sezonie";color:var(--moss);font-weight:400;font-size:.78rem}
+ul.season span{text-align:right}
 [hidden]{display:none!important}
 body{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 84px)}
 .view{display:flex;flex-direction:column;gap:20px}
@@ -121,17 +121,18 @@ select{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border-r
 <section id="error" class="err" hidden></section>
 
 <div id="viewW" class="view">
+<div class="chips" id="spSel" role="group" aria-label="Gatunek grzyba" style="margin-bottom:0"></div>
 <section id="todayBox" aria-live="polite">
-  <h2>Warunki dziś</h2>
+  <h2 id="todayH">Warunki dziś</h2>
   <div class="today"><span class="score num" id="score">–</span><div><div class="verdict" id="verdict">Pobieram dane…</div><div class="of">wskaźnik 0–100</div></div></div>
   <div class="scale"><i id="marker" style="left:0%"></i></div>
   <div class="ticks num"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+  <p class="note" id="limit" style="font-weight:600;color:var(--fg)"></p>
   <p class="note" id="best"></p>
 </section>
 
 <section>
   <h2>Mapa: gdzie szukać</h2>
-  <div class="chips" id="spSel" role="group" aria-label="Gatunek grzyba"></div>
   <div class="chips" id="modeSel" role="group" aria-label="Co pokazują kolory"></div>
   <div class="params" id="dayRow" style="grid-template-columns:auto 1fr;margin-bottom:10px" hidden><label for="daySel">Dzień</label><select id="daySel"></select></div>
   <div id="mMap" class="map" style="height:380px;margin-top:0"></div>
@@ -170,7 +171,7 @@ select{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border-r
   <p class="note err-text" id="stBan" style="margin:0 0 12px;font-weight:600" hidden></p>
   <dl id="stParts"></dl>
   <p class="note" id="stSoil"></p>
-  <p class="note">Gatunek panujący, wiek i typ siedliska z Banku Danych o Lasach. Ocena przydatności dla gatunków grzybów to reguły robocze, niezależne od wskaźnika pogodowego. Dane nie pokazują domieszek, np. brzóz w drzewostanie sosnowym. Ostrzeżenie o zakazie obejmuje lasy parków narodowych i lasy o funkcji rezerwatowej; rezerwatów poza lasem i okresowych zakazów wstępu nie wykrywa.</p>
+  <p class="note">Gatunek panujący, wiek i typ siedliska z Banku Danych o Lasach. Ocena przydatności dla gatunków grzybów to reguły robocze, niezależne od wskaźnika pogodowego. Dane nie pokazują domieszek, np. brzóz w drzewostanie sosnowym. Ostrzeżenie o zakazie obejmuje lasy parków narodowych i lasy o funkcji rezerwatowej; rezerwatów poza lasem i okresowych zakazów wstępu nie wykrywa. Grunt porolny (dawniej uprawiany) obniża ocenę o 30%.</p>
 </section>
 
 <section>
@@ -186,22 +187,22 @@ select{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border-r
 </section>
 
 <section>
-  <h2>Kalendarz gatunków</h2>
+  <h2>Wszystkie gatunki dziś</h2>
   <ul class="season" id="season"></ul>
-  <p class="note">Wskaźnik jest wspólny dla wszystkich gatunków; kalendarz pokazuje tylko typowy sezon.</p>
+  <p class="note">Wskaźnik pogodowy dla wybranego miejsca, bez oceny drzewostanu. Każdy gatunek ma własny sezon, próg opadu i okno temperatury gleby.</p>
 </section>
 
 <section>
   <h2>Parametry modelu</h2>
   <div class="params">
-    <label for="pTopt">Optymalna średnia temperatura z 20 dni (°C)</label><input id="pTopt" type="number" step="0.1" inputmode="decimal">
-    <label for="pTw">Szerokość zakresu temperatury (± °C do zera)</label><input id="pTw" type="number" step="0.5" inputmode="decimal">
-    <label for="pPsat">Opad dający maksimum (mm/dobę, średnia z 26 dni)</label><input id="pPsat" type="number" step="0.1" inputmode="decimal">
-    <label for="pFrost">Próg silnego przymrozku (°C, min. z 10 dni)</label><input id="pFrost" type="number" step="0.5" inputmode="decimal">
+    <label for="pDays">Okno opadu (dni)</label><input id="pDays" type="number" step="1" min="5" max="40" inputmode="numeric">
+    <label for="pMult">Mnożnik progu opadu (1 = wartości domyślne gatunków)</label><input id="pMult" type="number" step="0.1" min="0.3" max="3" inputmode="decimal">
+    <label for="pShift">Przesunięcie okien temperatury gleby (°C)</label><input id="pShift" type="number" step="0.5" inputmode="decimal">
+    <label for="pMargin">Margines temperatury: ile °C poza oknem daje zero</label><input id="pMargin" type="number" step="0.5" min="1" inputmode="decimal">
     <label for="pEt">Waga parowania (0 = pomijaj, 1 = odejmij od opadu całe parowanie potencjalne)</label><input id="pEt" type="number" step="0.1" min="0" max="1" inputmode="decimal">
   </div>
   <div class="row"><button class="primary" id="apply">Przelicz</button><button id="reset">Przywróć domyślne</button></div>
-  <p class="note">Temperatura i opad: okna 20 i 26 dni oraz optimum ok. 13,5°C pochodzą z 10-letniej obserwacji borowika szlachetnego w lesie bukowym (Niemcy, preprint 2025). Kara za przymrozek, próg nasycenia opadu i waga parowania to założenia robocze do korekty po zebraniu własnych wpisów. Waga parowania domyślnie wynosi 0, czyli parowanie nie zmienia wyniku.</p>
+  <p class="note">Za serwisem Grzybnik (analiza polskich znalezisk z lat 2020–2026) przyjąłem: okno opadu 18 dni, cel 68 mm i okno temperatury gleby 13–17°C dla borowika, sezony i zakresy wieku drzewostanu dla gatunków, regułę dwóch dni poniżej −2°C kończącą sezon oraz liczenie wody dostępnej względem rodzaju gleby. Moje założenia robocze: progi opadu i okna temperatury dla podgrzybka, koźlarza i kurki, wagi składników wody (50/30/20), punkty więdnięcia i pojemności polowe gleb, kara za grunt porolny. Wszystko do korekty Twoim dziennikiem.</p>
 </section>
 
 <p class="note" id="stamp" style="text-align:center"></p>
@@ -237,39 +238,54 @@ select{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border-r
 
 <script>
 /*CORE-START*/
-var DEFAULTS={Topt:13.5,Tw:5,Psat:3.5,frost:-3,wEt:0};
+var DEFAULTS={rainDays:18,rainMult:1,tShift:0,tMargin:4,wEt:0};
+/* m: miesiące sezonu; rain: cel opadu w 18 dni (mm); t: okno temperatury gleby (°C); day: temperatura z jednego dnia; age: [początek, szczyt, koniec] wieku drzewostanu */
+var SPM={
+  borowik:{name:"Borowik",m:[7,11],rain:68,t:[13,17],day:false,age:[54,70,171]},
+  podgrzybek:{name:"Podgrzybek",m:[7,11],rain:60,t:[10,16],day:false,age:[48,55,150]},
+  kozlarz:{name:"Koźlarz",m:[7,10],rain:60,t:[12,18],day:false,age:[32,35,80]},
+  kurka:{name:"Kurka",m:[6,10],rain:50,t:[12,19],day:true,age:[39,41,80]}};
+/* uziarnienie gleby -> [punkt więdnięcia, pojemność polowa] w m³/m³ */
+var TEXW={pl:[.04,.12],ps:[.06,.16],pg:[.09,.22],gp:[.12,.27],gl:[.14,.30],"":[.08,.22]};
 function mean(a){var s=0,n=0;for(var i=0;i<a.length;i++){if(a[i]!=null&&!isNaN(a[i])){s+=a[i];n++}}return n?s/n:null}
-/* days: [{date,p,tmean,tmin}] rosnąco; i: indeks ocenianego dnia */
-function evaluate(days,i,P){
-  var t20=mean(days.slice(Math.max(0,i-19),i+1).map(function(d){return d.tmean}));
-  var w26=days.slice(Math.max(0,i-25),i+1).map(function(d){return d.p});
-  var p26=mean(w26),et26=mean(days.slice(Math.max(0,i-25),i+1).map(function(d){return d.et0}));
-  var mins=days.slice(Math.max(0,i-9),i+1).map(function(d){return d.tmin}).filter(function(v){return v!=null});
-  var tminMin=mins.length?Math.min.apply(null,mins):null;
-  if(t20==null||p26==null)return null;
-  var fT=Math.max(0,1-Math.pow((t20-P.Topt)/P.Tw,2));
-  var fP=Math.max(0,Math.min(1,(p26-(P.wEt||0)*(et26||0))/P.Psat));
-  var fF=tminMin==null?1:(tminMin<=P.frost?0.3:(tminMin<=0?0.8:1));
-  return {score:Math.round(100*fT*fP*fF),t20:t20,p26:p26,pSum:p26*w26.length,etSum:et26==null?null:et26*w26.length,tminMin:tminMin,fT:fT,fP:fP,fF:fF,full:i>=25};
+function total(a){var s=0,n=0;for(var i=0;i<a.length;i++){if(a[i]!=null&&!isNaN(a[i])){s+=a[i];n++}}return n?s:null}
+function win(days,i,n,f){return days.slice(Math.max(0,i-n+1),i+1).map(f)}
+/* days: [{date,p,tmean,tmin,et0,sm,ts}] rosnąco; i: oceniany dzień; sp: gatunek; tex: uziarnienie gleby */
+function evaluate(days,i,P,sp,tex){
+  var S=SPM[sp]||SPM.borowik,W=TEXW[tex]||TEXW[""],d=days[i],n=Math.max(5,Math.round(P.rainDays||18));
+  var rain=total(win(days,i,n,function(x){return x.p})),et=total(win(days,i,n,function(x){return x.et0}));
+  if(rain==null)return null;
+  var target=S.rain*(P.rainMult||1)*n/18,R=Math.max(0,Math.min(1,(rain-(P.wEt||0)*(et||0))/target));
+  function av(x){return x.sm==null?null:Math.max(0,Math.min(1,(x.sm-W[0])/(W[1]-W[0])))}
+  var a0=av(d),a60=mean(win(days,i,60,av)),dry=a0!=null&&d.sm<W[0],fW=a0==null||a60==null?R:dry?0:.5*R+.3*a60+.2*a0;
+  var ts=S.day?d.ts:mean(win(days,i,18,function(x){return x.ts})),air=false;
+  if(ts==null){ts=mean(win(days,i,S.day?3:18,function(x){return x.tmean}));air=true}
+  if(ts==null)return null;
+  var lo=S.t[0]+(P.tShift||0),hi=S.t[1]+(P.tShift||0),mg=P.tMargin>0?P.tMargin:4,fT=ts<lo?Math.max(0,1-(lo-ts)/mg):ts>hi?Math.max(0,1-(ts-hi)/mg):1;
+  var mo=+d.date.slice(5,7),yr=d.date.slice(0,4),inS=mo>=S.m[0]&&mo<=S.m[1],frost=false;
+  for(var k=1;k<=i;k++){var x=days[k],y=days[k-1];if(x.date.slice(0,4)===yr&&+x.date.slice(5,7)>=8&&x.tmin!=null&&y.tmin!=null&&x.tmin<-2&&y.tmin<-2)frost=true}
+  var fS=inS&&!frost?1:0;
+  return{score:Math.round(100*fW*fT*fS),fW:fW,fT:fT,fS:fS,rain:rain,et:et,target:target,n:n,ts:ts,air:air,lo:lo,hi:hi,a0:a0,a60:a60,dry:dry,inS:inS,frost:frost,
+    lim:frost?"twardy przymrozek zakończył sezon":!inS?"gatunek poza sezonem":dry?"gleba poniżej punktu więdnięcia":fW<=fT?"woda":"temperatura gleby"};
 }
 function band(s){return s>=75?["bardzo dobre","--best"]:s>=50?["dobre","--good"]:s>=25?["umiarkowane","--mid"]:["słabe","--weak"]}
 /*CORE-END*/
 
-var KEY="grzybownik.params",PKEY="grzybownik.places",SKEY="grzybownik.place";
+var KEY="grzybownik.params2",MON=["","I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"],PKEY="grzybownik.places",SKEY="grzybownik.place";
 var HOME={id:"home",name:"Sochaczew",lat:52.229,lon:20.238},DAYSBY={},armedP=null;
 function loadPlaces(){var a=[];try{a=JSON.parse(localStorage.getItem(PKEY)||"[]")}catch(e){}return [HOME].concat(Array.isArray(a)?a:[])}
 function savePlaces(a){try{localStorage.setItem(PKEY,JSON.stringify(a.filter(function(p){return p.id!=="home"})));return true}catch(e){return false}}
 function curPlace(){var id=null;try{id=localStorage.getItem(SKEY)}catch(e){}var a=loadPlaces();return a.filter(function(p){return p.id===id})[0]||a[0]}
 var PLACE=curPlace();
 var SP=[["borowik","Borowik"],["podgrzybek","Podgrzybek"],["kozlarz","Koźlarz"],["kurka","Kurka"]];
-var SPECIES=[["Kurka (pieprznik jadalny)",6,10],["Koźlarze",6,10],["Borowik szlachetny",7,11],["Podgrzybek brunatny",8,11]];
 var $=function(id){return document.getElementById(id)};
 function loadP(){var p={};for(var k in DEFAULTS)p[k]=DEFAULTS[k];try{var s=JSON.parse(localStorage.getItem(KEY)||"{}");for(var k2 in DEFAULTS)if(typeof s[k2]==="number"&&isFinite(s[k2]))p[k2]=s[k2]}catch(e){}return p}
 function saveP(p){try{localStorage.setItem(KEY,JSON.stringify(p))}catch(e){}}
-function fillInputs(p){$("pTopt").value=p.Topt;$("pTw").value=p.Tw;$("pPsat").value=p.Psat;$("pFrost").value=p.frost;$("pEt").value=p.wEt}
-function readInputs(){var p={Topt:+$("pTopt").value,Tw:+$("pTw").value,Psat:+$("pPsat").value,frost:+$("pFrost").value,wEt:+$("pEt").value};
-  if(!(p.wEt>=0&&p.wEt<=1))p.wEt=DEFAULTS.wEt;
-  if(!(p.Tw>0))p.Tw=DEFAULTS.Tw;if(!(p.Psat>0))p.Psat=DEFAULTS.Psat;if(!isFinite(p.Topt))p.Topt=DEFAULTS.Topt;if(!isFinite(p.frost))p.frost=DEFAULTS.frost;return p}
+function fillInputs(p){$("pDays").value=p.rainDays;$("pMult").value=p.rainMult;$("pShift").value=p.tShift;$("pMargin").value=p.tMargin;$("pEt").value=p.wEt}
+function readInputs(){var p={rainDays:Math.round(+$("pDays").value),rainMult:+$("pMult").value,tShift:+$("pShift").value,tMargin:+$("pMargin").value,wEt:+$("pEt").value};
+  if(!(p.rainDays>=5&&p.rainDays<=40))p.rainDays=DEFAULTS.rainDays;if(!(p.rainMult>=.3&&p.rainMult<=3))p.rainMult=DEFAULTS.rainMult;
+  if(!isFinite(p.tShift))p.tShift=0;if(!(p.tMargin>=1))p.tMargin=DEFAULTS.tMargin;if(!(p.wEt>=0&&p.wEt<=1))p.wEt=DEFAULTS.wEt;return p}
+function texFor(lat,lon){var c=null;try{c=JSON.parse(localStorage.getItem("grzybownik.stands")||"{}")[lat+","+lon]}catch(e){}return c&&c.tex?String(c.tex).split("/")[0]:""}
 function fmt(v,d){return v==null?"–":v.toFixed(d).replace(".",",")}
 function todayStr(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Warsaw"}).format(new Date())}
 function dm(s){return (+s.slice(8))+"."+(+s.slice(5,7))}
@@ -279,19 +295,19 @@ function tIndex(days){var t=todayStr(),ti=-1;for(var i=0;i<days.length;i++)if(da
   return ti<0?Math.min(days.length-1,Math.max(0,days.length-10)):ti}
 function render(){
   if(!DAYS)return;
-  var P=loadP(),t=todayStr(),ti=-1;
-  ti=tIndex(DAYS);
-  var e=evaluate(DAYS,ti,P);
+  var P=loadP(),ti=tIndex(DAYS),sp=SUITSP,S=SPM[sp],tex=texFor(PLACE.lat,PLACE.lon),e=evaluate(DAYS,ti,P,sp,tex);
   if(!e){showErr("Za mało danych pogodowych do obliczenia wskaźnika.");return}
   var b=band(e.score);
+  $("todayH").textContent=S.name+": warunki dziś";
   $("score").textContent=e.score;$("score").style.color="var("+b[1]+")";
   $("verdict").textContent="Warunki "+b[0];
   $("marker").style.left=e.score+"%";
+  $("limit").textContent=e.score>=90?"":"Wynik ogranicza: "+e.lim+".";
 
   var from=Math.max(0,ti-7),chart=$("chart"),axis=$("axis"),bestI=-1,bestS=-1;
   chart.textContent="";axis.textContent="";
   for(var j=from;j<DAYS.length;j++){
-    var ej=evaluate(DAYS,j,P);if(!ej)continue;
+    var ej=evaluate(DAYS,j,P,sp,tex);if(!ej)continue;
     var bar=document.createElement("div"),bj=band(ej.score);
     bar.className="bar"+(j>ti?" fc":"")+(j===ti?" now":"");
     bar.style.height=Math.max(2,ej.score)+"%";bar.style.background="var("+bj[1]+")";
@@ -311,23 +327,19 @@ function render(){
   var parts=$("parts");parts.textContent="";
   function row(a,as,v,vs){var dt=document.createElement("dt");dt.textContent=a;var s=document.createElement("small");s.textContent=as;dt.appendChild(s);
     var dd=document.createElement("dd");dd.className="num";dd.textContent=v;var s2=document.createElement("small");s2.textContent=vs;dd.appendChild(s2);parts.appendChild(dt);parts.appendChild(dd)}
-  row("Średnia temperatura, 20 dni","optimum "+fmt(P.Topt,1)+"°C, zero poza ±"+fmt(P.Tw,1)+"°C",fmt(e.t20,1)+"°C","czynnik "+fmt(e.fT,2));
-  row("Suma opadów, 26 dni","maksimum od "+fmt(P.Psat*26,0)+" mm ("+fmt(P.Psat,1)+" mm/dobę)",fmt(e.pSum,0)+" mm","czynnik "+fmt(e.fP,2));
-  row("Najniższa temperatura, 10 dni","≤ 0°C: ×0,8; ≤ "+fmt(P.frost,1)+"°C: ×0,3",fmt(e.tminMin,1)+"°C","czynnik "+fmt(e.fF,2));
-  row("Wynik","temperatura × opad × przymrozek × 100",String(e.score),"");
-  var d0=DAYS[ti],d7=DAYS[Math.max(0,ti-7)];
-  if(e.etSum!=null)row("Parowanie potencjalne, 26 dni","bilans wodny: opad minus parowanie",fmt(e.etSum,0)+" mm","bilans "+(e.pSum-e.etSum>0?"+":"")+fmt(e.pSum-e.etSum,0)+" mm");
-  if(d0.sm!=null)row("Wilgotność gleby (model)","informacyjnie, bez wpływu na wynik",fmt(d0.sm,2)+" m³/m³",d7.sm!=null?"7 dni temu "+fmt(d7.sm,2):"");
-  if(d0.ts!=null)row("Temperatura gleby (model)","informacyjnie, bez wpływu na wynik",fmt(d0.ts,1)+"°C",d7.ts!=null?"7 dni temu "+fmt(d7.ts,1)+"°C":"");
+  row("Opad, "+e.n+" dni","cel dla gatunku: "+fmt(e.target,0)+" mm",fmt(e.rain,0)+" mm",e.et!=null?"parowanie "+fmt(e.et,0)+" mm":"");
+  if(e.a0!=null)row("Woda dostępna w glebie","dziś / średnio z 60 dni; 0% = punkt więdnięcia, 100% = pojemność polowa",Math.round(e.a0*100)+"% / "+Math.round(e.a60*100)+"%","gleba: "+(tex&&typeof TEX!=="undefined"&&TEX[tex]?TEX[tex]:"typ domyślny"));
+  row("Czynnik wody",e.a0!=null?"50% opad, 30% woda z 60 dni, 20% stan dziś":"sam opad, brak danych o glebie",fmt(e.fW,2),"");
+  row(e.air?"Temperatura powietrza":"Temperatura gleby, "+(S.day?"dziś":"18 dni"),(e.air?"brak danych o glebie; ":"")+"okno "+fmt(e.lo,0)+"–"+fmt(e.hi,0)+"°C",fmt(e.ts,1)+"°C","czynnik "+fmt(e.fT,2));
+  row("Sezon","miesiące "+MON[S.m[0]]+"–"+MON[S.m[1]]+"; koniec po 2 dniach poniżej −2°C",e.frost?"po przymrozku":e.inS?"w sezonie":"poza sezonem","czynnik "+e.fS);
+  row("Wynik","woda × temperatura × sezon × 100",String(e.score),"");
 
-  var m=+t.slice(5,7),ul=$("season");ul.textContent="";
-  var MON=["","I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"];
-  SPECIES.forEach(function(s){var li=document.createElement("li");if(m>=s[1]&&m<=s[2])li.className="on";
-    var bEl=document.createElement("b");bEl.textContent=s[0];var sp=document.createElement("span");sp.className="num";sp.textContent=MON[s[1]]+"–"+MON[s[2]];
-    li.appendChild(bEl);li.appendChild(sp);ul.appendChild(li)});
+  var ul=$("season");ul.textContent="";
+  SP.forEach(function(x){var v=evaluate(DAYS,ti,P,x[0],tex),li=document.createElement("li"),bEl=document.createElement("b"),sx=document.createElement("span");
+    bEl.textContent=x[1];sx.className="num";sx.textContent=v?v.score+(v.score<90?" · ogranicza: "+v.lim:""):"–";li.appendChild(bEl);li.appendChild(sx);ul.appendChild(li)});
 }
 function showErr(msg){var b=$("error");b.textContent=msg;b.hidden=false;$("score").textContent="–";$("score").style.color="";$("verdict").textContent="Brak danych";
-  $("marker").style.left="0%";$("best").textContent="";$("chart").textContent="";$("axis").textContent="";$("parts").textContent="";$("stamp").textContent=""}
+  $("marker").style.left="0%";$("best").textContent="";$("limit").textContent="";$("chart").textContent="";$("axis").textContent="";$("parts").textContent="";$("stamp").textContent=""}
 function stampTime(at){return new Date(at).toLocaleString("pl-PL",{dateStyle:"short",timeStyle:"short"})}
 function wxParse(j){
   var d=j.daily;if(!d||!d.time||!d.time.length)throw new Error("nieoczekiwany format odpowiedzi");
@@ -345,7 +357,7 @@ function wxGet(lat,lon,range,archive){
 }
 function fetchDays(p){
   var ck="grzybownik.cache."+p.id;
-  return wxGet(p.lat,p.lon,"past_days=40&forecast_days=10",false).then(function(days){
+  return wxGet(p.lat,p.lon,"past_days=62&forecast_days=10",false).then(function(days){
     try{localStorage.setItem(ck,JSON.stringify({at:Date.now(),days:days}))}catch(e){}
     return{days:days,at:Date.now(),stale:false};
   }).catch(function(err){var c=null;try{c=JSON.parse(localStorage.getItem(ck)||"null")}catch(e){}
@@ -370,7 +382,7 @@ function renderPlaces(){
     var b=document.createElement("button");b.type="button";b.className="pname"+(p.id===PLACE.id?" on":"");b.textContent=p.name;
     var stp=stCache()[p.lat+","+p.lon];if(stp&&(stp.tree||stp.site||stp.park)){var sm=document.createElement("small");sm.textContent=(stp.park||stp.res?"ZAKAZ ZBIORU · ":"")+stText(stp);b.appendChild(sm)}
     b.addEventListener("click",function(){selectPlace(p)});row.appendChild(b);
-    var s=document.createElement("span"),r=DAYSBY[p.id],e=r?evaluate(r.days,tIndex(r.days),P):null;s.className="ps num";
+    var s=document.createElement("span"),r=DAYSBY[p.id],e=r?evaluate(r.days,tIndex(r.days),P,SUITSP,texFor(p.lat,p.lon)):null;s.className="ps num";
     s.textContent=e?e.score:"–";if(e)s.style.color="var("+band(e.score)[1]+")";row.appendChild(s);
     if(p.id!=="home"){var d=document.createElement("button");d.type="button";d.className="del";d.textContent=armedP===p.id?"Potwierdź":"Usuń";
       d.addEventListener("click",function(){if(armedP!==p.id){armedP=p.id;renderPlaces();return}
@@ -387,13 +399,19 @@ var TREE={SO:"sosna","ŚW":"świerk",JD:"jodła",MD:"modrzew",DG:"daglezja",DB:"
 var SITE={Bs:"bór suchy","Bśw":"bór świeży",Bw:"bór wilgotny",Bb:"bór bagienny","BMśw":"bór mieszany świeży",BMw:"bór mieszany wilgotny",BMb:"bór mieszany bagienny","LMśw":"las mieszany świeży",LMw:"las mieszany wilgotny",LMb:"las mieszany bagienny","Lśw":"las świeży",Lw:"las wilgotny",Ol:"ols",OlJ:"ols jesionowy","Lł":"las łęgowy"};
 /*STAND-START*/
 var SUIT={
-  borowik:{site:{"BMśw":2,"LMśw":2,"Bśw":2,BMw:1,LMw:1,"Lśw":1,Bw:1},tree:{SO:2,"ŚW":2,DB:2,BK:2,JD:1,BRZ:1,GB:1,MD:1},age:30},
-  podgrzybek:{site:{"Bśw":2,"BMśw":2,BMw:2,Bw:1,"LMśw":1,LMw:1},tree:{SO:2,"ŚW":2,JD:1,MD:1,DB:1,BK:1},age:25},
-  kozlarz:{site:{"BMśw":2,"LMśw":2,"Bśw":2,BMw:2,LMw:2,"Lśw":1,Bw:1,Lw:1},tree:{BRZ:2,OS:2,TP:2,GB:2,SO:1,DB:1},age:10},
-  kurka:{site:{"Bśw":2,"BMśw":2,"LMśw":1,BMw:1,Bs:1,Bw:1},tree:{SO:2,"ŚW":2,DB:1,BK:1,JD:1},age:20}};
-function suit(k,st){var R=SUIT[k],a=R.site[st.site]||0,t=R.tree[st.tree]||0,young=st.age!=null&&st.age<R.age,tot=a+t;
-  return[young?(tot>=2?"przeciętne":"słabe"):tot>=4?"bardzo dobre":tot===3?"dobre":tot===2?"przeciętne":"słabe",
-    young&&tot>=2?"drzewostan młody, poniżej "+R.age+" lat":tot>=4?"gatunek drzew i siedlisko pasują":tot===3?"gatunek drzew i siedlisko pasują częściowo":tot===2?(a>t?"pasuje głównie siedlisko":t>a?"pasuje głównie gatunek drzew":"słabe dopasowanie drzew i siedliska"):"gatunek drzew i siedlisko nie pasują"]}
+  borowik:{site:{"BMśw":2,"LMśw":2,"Bśw":2,BMw:1,LMw:1,"Lśw":1,Bw:1},tree:{SO:2,DB:2,BK:2,"ŚW":2,JD:2,BRZ:1,LP:1,GB:1,MD:1}},
+  podgrzybek:{site:{"Bśw":2,"BMśw":2,BMw:2,Bw:1,"LMśw":1,LMw:1},tree:{SO:2,"ŚW":2,DB:1,BK:1,JD:1,MD:1}},
+  kozlarz:{site:{"BMśw":2,"LMśw":2,"Bśw":2,BMw:2,LMw:2,"Lśw":1,Bw:1,Lw:1},tree:{BRZ:2,OS:1,TP:1,GB:1,SO:1,DB:1}},
+  kurka:{site:{"Bśw":2,"BMśw":2,"LMśw":1,BMw:1,Bs:1,Bw:1},tree:{SO:2,"ŚW":2,DB:2,BK:2,BRZ:1,JD:1}}};
+/* Wiek: mało poniżej początku zakresu, pełnia w szczycie, łagodny spadek do końca zakresu. */
+function ageF(sp,age){var A=SPM[sp].age;if(age==null)return .8;if(age<A[0]*.5)return .15;if(age<A[0])return .15+.55*(age-A[0]*.5)/(A[0]*.5);
+  if(age<A[1])return .7+.3*(age-A[0])/Math.max(1,A[1]-A[0]);if(age<=A[2])return 1-.25*(age-A[1])/Math.max(1,A[2]-A[1]);return .7}
+/* Zwraca [klasa, uzasadnienie, udział 0–1] */
+function suit(k,st){var R=SUIT[k],a=R.site[st.site]||0,t=R.tree[st.tree]||0,tot=a+t,af=ageF(k,st.age),fr=(tot>=4?1:tot===3?.75:tot===2?.45:.15)*af*(st.arable?.7:1);
+  var why=[tot>=4?"drzewa i siedlisko pasują":tot===3?"drzewa i siedlisko pasują częściowo":tot===2?"słabe dopasowanie drzew i siedliska":"drzewa i siedlisko nie pasują"];
+  if(st.age!=null&&af<.7)why.push("drzewostan za młody, optimum od "+SPM[k].age[0]+" lat");else if(st.age!=null&&st.age>SPM[k].age[2])why.push("drzewostan bardzo stary");
+  if(st.arable)why.push("grunt porolny");
+  return[fr>=.8?"bardzo dobre":fr>=.55?"dobre":fr>=.3?"przeciętne":"słabe",why.join(", "),fr]}
 /*STAND-END*/
 function stCache(){try{var c=JSON.parse(localStorage.getItem(STKEY)||"{}");return c&&typeof c==="object"?c:{}}catch(e){return{}}}
 function stText(st){if(!st||(!st.tree&&!st.site))return st&&st.park?"las parku narodowego":"brak opisu w Banku Danych o Lasach";
@@ -412,8 +430,8 @@ var TEX={pl:"piasek luźny",ps:"piasek słabogliniasty",pg:"piasek gliniasty",gp
 var SITEUP={};Object.keys(SITE).forEach(function(k){SITEUP[k.toUpperCase()]=k});
 function banText(st){return st.park?"Las w zarządzie parku narodowego. Zbiór grzybów jest zabroniony poza miejscami wyznaczonymi przez dyrektora parku.":st.res?"Rezerwat przyrody. Zbiór grzybów jest zabroniony.":""}
 function standFor(lat,lon){
-  var k=lat+","+lon,c=stCache();if(c[k]&&c[k].v===2)return Promise.resolve(c[k]);
-  var st={v:2,tree:"",age:null,cls:"",site:"",soil:"",tex:"",moist:"",func:"",owner:"",park:false,res:false,lp:null},KW="WMS_BDL_kat_wlasnosci";
+  var k=lat+","+lon,c=stCache();if(c[k]&&c[k].v===3)return Promise.resolve(c[k]);
+  var st={v:3,arable:false,tree:"",age:null,cls:"",site:"",soil:"",tex:"",moist:"",func:"",owner:"",park:false,res:false,lp:null},KW="WMS_BDL_kat_wlasnosci";
   return bdlQ(KW,5,lat,lon).then(function(a){if(a.length){st.lp=true;st.owner="Lasy Państwowe";return a}
       return bdlQ(KW,6,lat,lon).then(function(b){if(b.length){st.lp=false;st.owner=tr(b[0].owner_cat_name)}return b})})
     .then(function(a){var f=a[0];if(f){st.tree=tr(f.species_cd_d).split(".")[0];st.age=f.species_age==null?null:+f.species_age;
@@ -421,18 +439,18 @@ function standFor(lat,lon){
         var up=tr(f.site_type_cd).toUpperCase();st.site=SITEUP[up]||tr(f.site_type_cd);st.func=tr(f.forest_func_cd);
         st.park=/Park.w Narodowych/i.test(st.owner);st.res=/^REZ/i.test(st.func)}
       return bdlQ("WMS_BDL_mapa_siedlisk",7,lat,lon).catch(function(){return[]})})
-    .then(function(a){var f=a[0];if(f){if(tr(f.site_type_cd))st.site=tr(f.site_type_cd);st.soil=tr(f.soil_subtype_cd);st.tex=tr(f.soil_species);st.moist=tr(f.moisture_cd)}
+    .then(function(a){var f=a[0];if(f){if(tr(f.site_type_cd))st.site=tr(f.site_type_cd);st.soil=tr(f.soil_subtype_cd);st.tex=tr(f.soil_species);st.moist=tr(f.moisture_cd);st.arable=tr(f.arable_formerly)==="T"}
       st.at=Date.now();var c2=stCache();c2[k]=st;try{localStorage.setItem(STKEY,JSON.stringify(c2))}catch(e){}return st});
 }
 function showStand(){
   var p=PLACE,main=$("stMain"),dl=$("stParts"),ban=$("stBan"),soil=$("stSoil");main.textContent="Sprawdzam…";dl.textContent="";ban.hidden=true;soil.textContent="";
-  standFor(p.lat,p.lon).then(function(st){if(p.id!==PLACE.id)return;renderPlaces();
+  standFor(p.lat,p.lon).then(function(st){if(p.id!==PLACE.id)return;renderPlaces();render();
     if(!st.tree&&!st.site&&!st.owner){main.textContent="Ten punkt leży poza lasem opisanym w Banku Danych o Lasach.";return}
     main.textContent=stText(st)+(st.cls?" ("+st.cls+" klasa wieku)":"");
     var bt=banText(st);if(bt){ban.textContent=bt;ban.hidden=false}
     var bits=[];if(st.owner)bits.push("Własność: "+st.owner);
     if(st.soil||st.tex)bits.push("Gleba: "+[st.soil?(SOIL[st.soil]?SOIL[st.soil]+" ("+st.soil+")":st.soil):"",st.tex?st.tex.split("/").map(function(t){return TEX[t]||t}).join(" / "):""].filter(Boolean).join(", "));
-    if(st.moist)bits.push("Wariant uwilgotnienia siedliska: "+st.moist);
+    if(st.moist)bits.push("Wariant uwilgotnienia siedliska: "+st.moist);if(st.arable)bits.push("Grunt porolny (dawniej uprawiany)");
     soil.textContent=bits.join(". ")+(bits.length?".":"");
     if(st.tree||st.site)SP.forEach(function(x){var r=suit(x[0],st),dt=document.createElement("dt"),dd=document.createElement("dd"),sm=document.createElement("small");
       dt.textContent=x[1];dd.textContent=r[0];sm.textContent=r[1];dd.appendChild(sm);dl.appendChild(dt);dl.appendChild(dd)});
@@ -456,16 +474,16 @@ function forestLayers(map,noStands){
 var MM=null,MMK=[],MKCOL={"--weak":"#7d877f","--mid":"#b07f1d","--good":"#4f7a4a","--best":"#1f5a3a"};
 function drawMarkers(){
   if(!MM)return;MMK.forEach(function(m){MM.removeLayer(m)});MMK=[];var P=loadP();
-  loadPlaces().forEach(function(p){var r=DAYSBY[p.id],e=r?evaluate(r.days,tIndex(r.days),P):null;
+  loadPlaces().forEach(function(p){var r=DAYSBY[p.id],e=r?evaluate(r.days,tIndex(r.days),P,SUITSP,texFor(p.lat,p.lon)):null;
     var ic=L.divIcon({className:"",html:'<div class="mk'+(p.id===PLACE.id?" on":"")+'" style="background:'+(e?MKCOL[band(e.score)[1]]:"#7d877f")+'">'+(e?e.score:"–")+"</div>",iconSize:[34,34],iconAnchor:[17,17]});
     var m=L.marker([p.lat,p.lon],{icon:ic,title:p.name}).addTo(MM);m.bindTooltip(p.name,{permanent:true,direction:"bottom",offset:[0,16]});
     m.on("click",function(){selectPlace(p)});MMK.push(m)});
 }
 /* Przydatność wydzieleń dla wybranego gatunku grzyba. */
-var MAPMODE="szansa",MAPDAY=0,SUITW=null,SUITWD=null,SUITWSRC="",MWX={},SUITFRAC={"bardzo dobre":1,"dobre":.75,"przeciętne":.45,"słabe":.15};
-try{var mv=localStorage.getItem("grzybownik.mapmode");if(mv==="las"||mv==="szansa")MAPMODE=mv}catch(e){}
+var MAPMODE="szansa",MAPDAY=0,SUITW=null,SUITWD=null,SUITWSRC="",MWX={},SUITWTEX="";
+try{var mv=localStorage.getItem("grzybownik.mapmode");if(mv==="las"||mv==="szansa"||mv==="off")MAPMODE=mv}catch(e){}
 var SUITC={"bardzo dobre":"#1f5a3a","dobre":"#6fae5c","przeciętne":"#e3c256","umiarkowane":"#e3c256","słabe":"#b5b8b0"},BANC="#a8322a",SUITSP="borowik",SUITL=null,SUITR=null,SUITF=[],suitSeq=0,suitT=null;
-try{var sv=localStorage.getItem("grzybownik.suitsp");if(sv!==null&&(sv===""||SUIT[sv]))SUITSP=sv}catch(e){}
+try{var sv=localStorage.getItem("grzybownik.suitsp");if(sv&&SPM[sv])SUITSP=sv}catch(e){}
 function spName(k){for(var i=0;i<SP.length;i++)if(SP[i][0]===k)return SP[i][1];return k}
 function kwSt(a,lp){
   var st={tree:tr(a.species_cd_d).split(".")[0],age:a.species_age==null?null:+a.species_age,site:"",func:tr(a.forest_func_cd),owner:lp?"Lasy Państwowe":tr(a.owner_cat_name)},up=tr(a.site_type_cd).toUpperCase();
@@ -483,29 +501,29 @@ function bdlBoth(b,off){return bdlArea(5,b,off).then(function(a){return bdlArea(
 /* Pogoda dla widoku mapy: najbliższe zapisane miejsce do 12 km, inaczej środek mapy. */
 function mapWeather(){
   var c=MM.getCenter(),kx=111.2*Math.cos(c.lat*Math.PI/180),best=null,bd=12;
-  loadPlaces().forEach(function(p){var r=DAYSBY[p.id];if(!r)return;var dy=(p.lat-c.lat)*111.2,dx=(p.lon-c.lng)*kx,d=Math.sqrt(dx*dx+dy*dy);if(d<=bd){bd=d;best={days:r.days,src:p.name}}});
+  loadPlaces().forEach(function(p){var r=DAYSBY[p.id];if(!r)return;var dy=(p.lat-c.lat)*111.2,dx=(p.lon-c.lng)*kx,d=Math.sqrt(dx*dx+dy*dy);if(d<=bd){bd=d;best={days:r.days,src:p.name,tex:texFor(p.lat,p.lon)}}});
   if(best)return Promise.resolve(best);
   var k=c.lat.toFixed(1)+","+c.lng.toFixed(1);if(MWX[k])return Promise.resolve({days:MWX[k],src:"środek mapy"});
-  return wxGet(+c.lat.toFixed(2),+c.lng.toFixed(2),"past_days=40&forecast_days=10",false).then(function(days){MWX[k]=days;return{days:days,src:"środek mapy"}});
+  return wxGet(+c.lat.toFixed(2),+c.lng.toFixed(2),"past_days=62&forecast_days=10",false).then(function(days){MWX[k]=days;return{days:days,src:"środek mapy"}});
 }
-function weatherAt(days){var i=Math.min(days.length-1,tIndex(days)+MAPDAY),e=evaluate(days,i,loadP());return{score:e?e.score:null,date:days[i].date}}
+function weatherAt(days){var i=Math.min(days.length-1,tIndex(days)+MAPDAY),e=evaluate(days,i,loadP(),SUITSP,SUITWTEX);return{score:e?e.score:null,date:days[i].date}}
 function fillDays(){
   var sel=$("daySel"),row=$("dayRow");row.hidden=MAPMODE!=="szansa"||!SUITWD;if(row.hidden)return;
   var t=tIndex(SUITWD),n=Math.min(10,SUITWD.length-t);sel.textContent="";
-  for(var i=0;i<n;i++){var o=document.createElement("option"),d=SUITWD[t+i].date,e=evaluate(SUITWD,t+i,loadP());o.value=i;
+  for(var i=0;i<n;i++){var o=document.createElement("option"),d=SUITWD[t+i].date,e=evaluate(SUITWD,t+i,loadP(),SUITSP,SUITWTEX);o.value=i;
     o.textContent=(i===0?"dziś":i===1?"jutro":new Date(d+"T12:00:00").toLocaleDateString("pl-PL",{weekday:"long"}))+", "+dm(d)+(e?" · pogoda "+e.score:"");sel.appendChild(o)}
   if(MAPDAY>=n)MAPDAY=0;sel.value=MAPDAY;
 }
 function refreshW(){
   if(MAPMODE!=="szansa"||!MM){SUITW=null;fillDays();return Promise.resolve()}
-  return mapWeather().then(function(w){SUITWD=w.days;SUITWSRC=w.src;SUITW=weatherAt(w.days)}).catch(function(){SUITW=null;SUITWD=null}).then(fillDays);
+  return mapWeather().then(function(w){SUITWD=w.days;SUITWSRC=w.src;SUITWTEX=w.tex||"";SUITW=weatherAt(w.days)}).catch(function(){SUITW=null;SUITWD=null}).then(fillDays);
 }
 /* Klasa wydzielenia: [etykieta, liczba 0–100 albo null, etykieta samego drzewostanu] */
-function chance(st){var lab=suit(SUITSP,st)[0];
-  if(MAPMODE==="szansa"&&SUITW&&SUITW.score!=null){var v=Math.round(SUITFRAC[lab]*SUITW.score);return[band(v)[0],v,lab]}
-  return[lab,null,lab]}
+function chance(st){var r=suit(SUITSP,st);
+  if(MAPMODE==="szansa"&&SUITW&&SUITW.score!=null){var v=Math.round(r[2]*SUITW.score);return[band(v)[0],v,r[0]]}
+  return[r[0],null,r[0]]}
 function suitDraw(){
-  if(!SUITL)return;SUITL.clearLayers();if(!SUITSP)return;
+  if(!SUITL)return;SUITL.clearLayers();if(MAPMODE==="off")return;
   SUITF.forEach(function(f){var st=f.st,ban=st.park||st.res;if(!st.tree&&!ban)return;var lab=chance(st)[0],col=ban?BANC:SUITC[lab];
     L.polygon(f.rings,{renderer:SUITR,interactive:false,weight:.6,color:"#ffffff",opacity:.7,fillColor:col,fillOpacity:ban?.45:lab==="słabe"?.35:.62}).addTo(SUITL)});
 }
@@ -515,10 +533,10 @@ function suitNote(more){
   $("suitNote").textContent=t;
 }
 var suitMore=false;
-function mapRefresh(){if(!MM||!SUITL)return;refreshW().then(function(){suitDraw();if(SUITSP&&MM.getZoom()>=13)suitNote(suitMore)})}
+function mapRefresh(){if(!MM||!SUITL)return;refreshW().then(function(){suitDraw();if(MAPMODE!=="off"&&MM.getZoom()>=13)suitNote(suitMore)})}
 function suitLoad(){
   if(!MM||!SUITL)return;var note=$("suitNote"),seq=++suitSeq,z=MM.getZoom();
-  if(!SUITSP){SUITF=[];suitDraw();note.textContent="";return}
+  if(MAPMODE==="off"){SUITF=[];suitDraw();note.textContent="";$("dayRow").hidden=true;return}
   if(z<13){SUITF=[];suitDraw();note.textContent="Przybliż mapę, żeby zobaczyć kolory wydzieleń (widok kilku kilometrów).";return}
   var bb=MM.getBounds(),b=[bb.getWest(),bb.getSouth(),bb.getEast(),bb.getNorth()].map(function(v){return v.toFixed(5)});
   note.textContent="Pobieram wydzielenia…";
@@ -528,15 +546,16 @@ function suitLoad(){
 }
 function suitChips(){
   var mb=$("modeSel");mb.textContent="";
-  [["szansa","Szansa: las i pogoda"],["las","Sam drzewostan"]].forEach(function(x){var b=document.createElement("button");b.type="button";b.textContent=x[1];b.setAttribute("aria-pressed",MAPMODE===x[0]?"true":"false");
-    b.addEventListener("click",function(){MAPMODE=x[0];try{localStorage.setItem("grzybownik.mapmode",MAPMODE)}catch(e){}suitChips();mapRefresh()});mb.appendChild(b)});
+  [["szansa","Szansa: las i pogoda"],["las","Sam drzewostan"],["off","Bez kolorów"]].forEach(function(x){var b=document.createElement("button");b.type="button";b.textContent=x[1];b.setAttribute("aria-pressed",MAPMODE===x[0]?"true":"false");
+    b.addEventListener("click",function(){MAPMODE=x[0];try{localStorage.setItem("grzybownik.mapmode",MAPMODE)}catch(e){}suitChips();if(MAPMODE!=="off"&&SUITF.length)mapRefresh();else suitLoad()});mb.appendChild(b)});
   var box=$("spSel");box.textContent="";
-  SP.concat([["","Bez kolorów"]]).forEach(function(x){var b=document.createElement("button");b.type="button";b.textContent=x[1];b.setAttribute("aria-pressed",SUITSP===x[0]?"true":"false");
-    b.addEventListener("click",function(){SUITSP=x[0];try{localStorage.setItem("grzybownik.suitsp",SUITSP)}catch(e){}suitChips();$("bestList").textContent="";if(SUITSP&&SUITF.length)suitDraw();else suitLoad()});box.appendChild(b)});
+  SP.forEach(function(x){var b=document.createElement("button");b.type="button";b.textContent=x[1];b.setAttribute("aria-pressed",SUITSP===x[0]?"true":"false");
+    b.addEventListener("click",function(){SUITSP=x[0];try{localStorage.setItem("grzybownik.suitsp",SUITSP)}catch(e){}suitChips();$("bestList").textContent="";render();renderPlaces();
+      if(MAPMODE!=="off"&&SUITF.length)mapRefresh();else suitLoad()});box.appendChild(b)});
 }
 function compass(dx,dy){return["płn.","płn.-wsch.","wsch.","płd.-wsch.","płd.","płd.-zach.","zach.","płn.-zach."][Math.round(((Math.atan2(dx,dy)*180/Math.PI+360)%360)/45)%8]}
 function bestList(){
-  var p=PLACE,sp=SUITSP||"borowik",box=$("bestList"),kx=111.2*Math.cos(p.lat*Math.PI/180),dLat=3/111.2,dLon=3/kx,rank={"bardzo dobre":3,"dobre":2,"przeciętne":1,"słabe":0};
+  var p=PLACE,sp=SUITSP,box=$("bestList"),kx=111.2*Math.cos(p.lat*Math.PI/180),dLat=3/111.2,dLon=3/kx,rank={"bardzo dobre":3,"dobre":2,"przeciętne":1,"słabe":0};
   box.textContent="Szukam…";
   bdlBoth([p.lon-dLon,p.lat-dLat,p.lon+dLon,p.lat+dLat].map(function(v){return v.toFixed(5)}),0.0003).then(function(r){
     if(p.id!==PLACE.id)return;
@@ -561,7 +580,7 @@ function mainMap(){
       t.textContent="Sprawdzam drzewostan…";b.type="button";b.textContent="Dodaj miejsce tutaj";box.appendChild(t);box.appendChild(b);
       L.popup().setLatLng(ev.latlng).setContent(box).openOn(MM);
       standFor(lat,lon).then(function(st){t.textContent=stText(st)+(st.park||st.res?". ZAKAZ ZBIORU ("+(st.park?"park narodowy":"rezerwat")+")":"");
-        if(SUITSP&&(st.tree||st.site)){var r=suit(SUITSP,st),l=document.createElement("div");l.style.marginTop="4px";var c=chance(st);
+        if(st.tree||st.site){var r=suit(SUITSP,st),l=document.createElement("div");l.style.marginTop="4px";var c=chance(st);
           l.textContent=c[1]!=null?spName(SUITSP)+", "+dm(SUITW.date)+": ocena łączna "+c[1]+"/100 ("+c[0]+"). Drzewostan: "+r[0]+" ("+r[1]+"), pogoda: "+SUITW.score+"/100.":spName(SUITSP)+": "+r[0]+" ("+r[1]+")";t.appendChild(l)}}).catch(function(){t.textContent="Nie udało się sprawdzić drzewostanu."});
       b.addEventListener("click",function(){MM.closePopup();$("pform").hidden=false;renderPlaces();PICK.p.set(lat,lon,"punkt z mapy");$("pform").scrollIntoView({block:"center"});$("pName").focus()})});
     $("mNote").textContent="Kółka z liczbą to zapisane miejsca i wskaźnik pogodowy na dziś. Dotknij kółka, żeby wybrać miejsce, albo dowolnego lasu, żeby sprawdzić drzewostan i dodać nowe miejsce.";drawMarkers();
@@ -621,21 +640,22 @@ function loadJ(){try{var a=JSON.parse(localStorage.getItem(JKEY)||"[]");return A
 function saveJ(a){try{localStorage.setItem(JKEY,JSON.stringify(a));return true}catch(e){return false}}
 function addDays(s,n){var d=new Date(s+"T12:00:00Z");d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
 function fillWeather(id){
-  var e=loadJ().filter(function(x){return x.id===id})[0];if(!e||e.wx)return Promise.resolve();
+  var e=loadJ().filter(function(x){return x.id===id})[0];if(!e||(e.wx&&e.wx.sc))return Promise.resolve();
   var age=Math.round((Date.parse(todayStr())-Date.parse(e.date))/864e5);
-  return wxGet(e.lat,e.lon,"start_date="+addDays(e.date,-25)+"&end_date="+e.date,age>60).then(function(days){
-    var ev=evaluate(days,days.length-1,DEFAULTS),last=days[days.length-1];if(!ev)throw new Error("brak danych");
+  return wxGet(e.lat,e.lon,"start_date="+addDays(e.date,-61)+"&end_date="+e.date,age>25).then(function(days){
+    var i=days.length-1,tex=texFor(e.lat,e.lon),sc={},one=null;
+    SP.forEach(function(x){var v=evaluate(days,i,DEFAULTS,x[0],tex);if(v){sc[x[0]]=v.score;if(x[0]==="borowik")one=v}});if(!one)throw new Error("brak danych");
     function r1(v,k){return v==null?null:Math.round(v*k)/k}
-    var all=loadJ();all.forEach(function(x){if(x.id===id)x.wx={score:ev.score,p26:r1(ev.pSum,10),t20:r1(ev.t20,10),tmin10:ev.tminMin,et26:r1(ev.etSum,10),sm:r1(last.sm,1000),ts:r1(last.ts,10),
-      days:days.map(function(y){return[y.p,y.tmean,y.tmin,y.et0]})}});
+    var all=loadJ();all.forEach(function(x){if(x.id===id)x.wx={sc:sc,rain18:r1(one.rain,10),et18:r1(one.et,10),ts18:r1(one.ts,10),a0:r1(one.a0,100),a60:r1(one.a60,100),tex:tex,
+      days:days.map(function(y){return[y.p,y.tmean,y.tmin,y.et0,r1(y.sm,1000),r1(y.ts,10)]})}});
     saveJ(all);renderJ();
   }).catch(function(){});
 }
 function fillStand(id){
   var e=loadJ().filter(function(x){return x.id===id})[0];if(!e||e.st)return Promise.resolve();
-  return standFor(e.lat,e.lon).then(function(st){var all=loadJ();all.forEach(function(x){if(x.id===id)x.st={tree:st.tree,age:st.age,site:st.site,soil:st.soil,func:st.func,owner:st.owner}});saveJ(all);renderJ()}).catch(function(){});
+  return standFor(e.lat,e.lon).then(function(st){var all=loadJ();all.forEach(function(x){if(x.id===id)x.st={tree:st.tree,age:st.age,site:st.site,soil:st.soil,tex:st.tex,func:st.func,owner:st.owner,arable:!!st.arable}});saveJ(all);renderJ()}).catch(function(){});
 }
-function syncPending(){var p=loadJ().filter(function(x){return !x.wx||!x.st}),i=0;(function next(){if(i<p.length){var id=p[i++].id;fillWeather(id).then(function(){return fillStand(id)}).then(next)}})()}
+function syncPending(){var p=loadJ().filter(function(x){return !x.wx||!x.wx.sc||!x.st}),i=0;(function next(){if(i<p.length){var id=p[i++].id;fillStand(id).then(function(){return fillWeather(id)}).then(next)}})()}
 function buildSpecies(){var box=$("jSpecies");box.textContent="";SP.forEach(function(s){
   var row=document.createElement("div");row.className="seg";row.setAttribute("role","radiogroup");row.setAttribute("aria-label",s[1]);
   var name=document.createElement("span");name.textContent=s[1];name.style.cssText="border:0;background:none;text-align:left;padding:0";row.appendChild(name);
@@ -653,7 +673,7 @@ function submitJ(ev){
   var all=loadJ();all.push(e);all.sort(function(x,y){return x.date<y.date?1:x.date>y.date?-1:(x.id<y.id?1:-1)});
   if(!saveJ(all))return jError("Nie udało się zapisać wpisu: przeglądarka zablokowała pamięć lokalną.");
   jError("");$("jPlace").value="";$("jNote").value="";SP.forEach(function(s){$("a_"+s[0]+"_0").checked=true});$("jSaved").value="";
-  renderJ();fillWeather(e.id).then(function(){return fillStand(e.id)});
+  renderJ();fillStand(e.id).then(function(){return fillWeather(e.id)});
 }
 function renderJ(){
   var all=loadJ(),list=$("jList");list.textContent="";
@@ -663,11 +683,11 @@ function renderJ(){
     var d=document.createElement("div");d.className="entry";
     var h=document.createElement("div");h.className="head";var l=document.createElement("span");
     l.textContent=new Date(e.date+"T12:00:00").toLocaleDateString("pl-PL",{day:"numeric",month:"long",year:"numeric"})+(e.place?" · "+e.place:"");
-    var r=document.createElement("span");r.className="num";r.textContent=e.wx?"wskaźnik "+e.wx.score:"";h.appendChild(l);h.appendChild(r);d.appendChild(h);
+    var r=document.createElement("span");r.className="num";r.textContent="";h.appendChild(l);h.appendChild(r);d.appendChild(h);
     var found=SP.filter(function(s){return e.a[s[0]]>0}).map(function(s){return s[1]+" "+e.a[s[0]]+"/5"});
     var f=document.createElement("div");f.textContent=found.length?found.join(" · "):"Nic nie znaleziono";d.appendChild(f);
     var m=document.createElement("div");m.className="meta num";
-    m.textContent=fmt(e.lat,5)+"°N, "+fmt(e.lon,5)+"°E · "+(e.wx?"opad 26 dni: "+fmt(e.wx.p26,0)+" mm, temp. 20 dni: "+fmt(e.wx.t20,1)+"°C":"pogoda zostanie dopisana po połączeniu z internetem")+(e.st&&(e.st.tree||e.st.site)?" · "+stText(e.st):"");d.appendChild(m);
+    m.textContent=fmt(e.lat,5)+"°N, "+fmt(e.lon,5)+"°E · "+(e.wx&&e.wx.sc?"wskaźniki: "+SP.map(function(x){return x[1].toLowerCase()+" "+(e.wx.sc[x[0]]==null?"–":e.wx.sc[x[0]])}).join(", ")+" · opad 18 dni: "+fmt(e.wx.rain18,0)+" mm":e.wx?"wskaźnik (stary model): "+e.wx.score:"pogoda zostanie dopisana po połączeniu z internetem")+(e.st&&(e.st.tree||e.st.site)?" · "+stText(e.st):"");d.appendChild(m);
     if(e.note){var n=document.createElement("div");n.className="meta";n.textContent=e.note;d.appendChild(n)}
     var b=document.createElement("button");b.type="button";b.textContent=armed===e.id?"Potwierdź usunięcie":"Usuń";
     b.addEventListener("click",function(){if(armed===e.id){saveJ(loadJ().filter(function(x){return x.id!==e.id}));armed=null}else armed=e.id;renderJ()});
@@ -676,8 +696,10 @@ function renderJ(){
 function toCsv(all){
   function q(v){v=v==null?"":String(v);return /[";\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
   function n(v){return v==null?"":String(v).replace(".",",")}
-  var rows=[["data","miejsce","szerokosc","dlugosc"].concat(SP.map(function(s){return s[0]}),["wskaznik","opad_26d_mm","temp_20d_C","tmin_10d_C","parowanie_26d_mm","wilg_gleby","temp_gleby_C","drzewa","wiek_drzew","siedlisko","gleba","funkcja_lasu","wlasnosc","notatka"])];
-  all.forEach(function(e){var w=e.wx||{},z=e.st||{};rows.push([e.date,e.place,n(e.lat),n(e.lon)].concat(SP.map(function(s){return e.a[s[0]]}),[n(w.score),n(w.p26),n(w.t20),n(w.tmin10),n(w.et26),n(w.sm),n(w.ts),z.tree,z.age,z.site,z.soil,z.func,z.owner,e.note]))});
+  var rows=[["data","miejsce","szerokosc","dlugosc"].concat(SP.map(function(s){return s[0]}),SP.map(function(s){return"wsk_"+s[0]}),
+    ["opad_18d_mm","parowanie_18d_mm","temp_gleby_18d_C","woda_dostepna_dzis","woda_dostepna_60d","drzewa","wiek_drzew","siedlisko","gleba","uziarnienie","porolny","funkcja_lasu","wlasnosc","notatka"])];
+  all.forEach(function(e){var w=e.wx||{},c=w.sc||{},z=e.st||{};rows.push([e.date,e.place,n(e.lat),n(e.lon)].concat(SP.map(function(s){return e.a[s[0]]}),SP.map(function(s){return c[s[0]]}),
+    [n(w.rain18),n(w.et18),n(w.ts18),n(w.a0),n(w.a60),z.tree,z.age,z.site,z.soil,z.tex,z.arable?"tak":z.st||z.tree?"nie":"",z.func,z.owner,e.note]))});
   return rows.map(function(r){return r.map(q).join(";")}).join("\r\n");
 }
 function exportJ(){
