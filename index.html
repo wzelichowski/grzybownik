@@ -98,6 +98,10 @@ textarea{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border
 .leaflet-container section{background:none;border:0;border-radius:0;padding:0}
 .leaflet-container input{width:auto;padding:0;border:0;margin:0 8px 0 0;vertical-align:middle}
 .leaflet-container label{display:block;margin:0;padding:7px 2px;font-size:.9rem;color:#1c2620;text-align:left}
+.leaflet-popup-content{color:#1c2620;font-size:.9rem;margin:12px 14px}
+.leaflet-popup-content button{margin-top:8px;background:#24382c;color:#fff;border-color:#24382c;padding:8px 12px;font-size:.85rem}
+.mk{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.85rem;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+.mk.on{box-shadow:0 0 0 3px #1c2620,0 1px 4px rgba(0,0,0,.45)}
 .leaflet-control-layers-expanded{background:#fff;color:#1c2620;max-width:75vw}
 .prow .ps{font-weight:700;min-width:2.2rem;text-align:right}
 .prow .del{padding:6px 10px;font-size:.8rem}
@@ -118,6 +122,13 @@ select{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border-r
   <div class="scale"><i id="marker" style="left:0%"></i></div>
   <div class="ticks num"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
   <p class="note" id="best"></p>
+</section>
+
+<section>
+  <h2>Mapa</h2>
+  <div id="mMap" class="map" style="height:340px;margin-top:0"></div>
+  <p class="note" id="mNote">Ładuję mapę…</p>
+  <p class="note">Warstwy leśne włączysz ikoną w rogu mapy; drzewostany widać po przybliżeniu. Kolory: brąz = sosna, fiolet = świerk, szary = dąb, żółty = buk i grab, zielony = olsza, turkus = brzoza, róż = osika i topola. Ciemniejszy odcień = starszy drzewostan.</p>
 </section>
 
 <section>
@@ -333,7 +344,7 @@ function load(){
 }
 function loadAll(){var a=loadPlaces().filter(function(p){return !DAYSBY[p.id]&&p.id!==PLACE.id}),i=0;
   (function next(){if(i>=a.length)return;var p=a[i++];fetchDays(p).then(function(r){DAYSBY[p.id]=r;renderPlaces()}).catch(function(){}).then(next)})()}
-function selectPlace(p){PLACE=p;try{localStorage.setItem(SKEY,p.id)}catch(e){}renderPlaces();load();window.scrollTo(0,0)}
+function selectPlace(p){if(MM)MM.panTo([p.lat,p.lon]);PLACE=p;try{localStorage.setItem(SKEY,p.id)}catch(e){}renderPlaces();load();window.scrollTo(0,0)}
 function renderPlaces(){
   var a=loadPlaces(),box=$("places"),P=loadP();box.textContent="";
   a.forEach(function(p){
@@ -349,7 +360,7 @@ function renderPlaces(){
         delete DAYSBY[p.id];if(PLACE.id===p.id)selectPlace(HOME);else renderPlaces();fillSaved()});
       row.appendChild(d)}
     box.appendChild(row)});
-  $("pAddBtn").hidden=a.length>=12||!$("pform").hidden;
+  $("pAddBtn").hidden=a.length>=12||!$("pform").hidden;drawMarkers();
 }
 
 /* ---------- Drzewostan (Bank Danych o Lasach) ---------- */
@@ -419,6 +430,33 @@ function leaflet(ok,fail){
   var s=document.createElement("script");s.src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";s.onload=ok;s.onerror=fail;document.head.appendChild(s);
 }
 function wms(svc,layers){return L.tileLayer.wms(BDL+"services/"+svc+"/MapServer/WMSServer",{layers:layers,format:"image/png",transparent:true,version:"1.3.0",opacity:.6,maxZoom:18,attribution:"© Bank Danych o Lasach"})}
+function forestLayers(map){
+  var ov={"Drzewostany (gatunek, wiek)":wms("WMS_BDL_mapa_drzewostanow","1,0"),"Siedliska leśne":wms("WMS_BDL_mapa_siedlisk","0"),"Okresowe zakazy wstępu":wms("WMS_zakazy_wstepu_do_lasu","3"),"Własność (parki narodowe, prywatne)":wms("WMS_BDL_kat_wlasnosci","0")};
+  ov["Drzewostany (gatunek, wiek)"].addTo(map);ov["Okresowe zakazy wstępu"].addTo(map);L.control.layers(null,ov).addTo(map);
+}
+/* Mapa na stronie głównej: zapisane miejsca ze wskaźnikiem na dziś, dotknięcie lasu pokazuje drzewostan. */
+var MM=null,MMK=[],MKCOL={"--weak":"#7d877f","--mid":"#b07f1d","--good":"#4f7a4a","--best":"#1f5a3a"};
+function drawMarkers(){
+  if(!MM)return;MMK.forEach(function(m){MM.removeLayer(m)});MMK=[];var P=loadP();
+  loadPlaces().forEach(function(p){var r=DAYSBY[p.id],e=r?evaluate(r.days,tIndex(r.days),P):null;
+    var ic=L.divIcon({className:"",html:'<div class="mk'+(p.id===PLACE.id?" on":"")+'" style="background:'+(e?MKCOL[band(e.score)[1]]:"#7d877f")+'">'+(e?e.score:"–")+"</div>",iconSize:[34,34],iconAnchor:[17,17]});
+    var m=L.marker([p.lat,p.lon],{icon:ic,title:p.name}).addTo(MM);m.bindTooltip(p.name,{permanent:true,direction:"bottom",offset:[0,16]});
+    m.on("click",function(){selectPlace(p)});MMK.push(m)});
+}
+function mainMap(){
+  leaflet(function(){if(MM)return;
+    MM=L.map("mMap").setView([PLACE.lat,PLACE.lon],11);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,attribution:"© OpenStreetMap"}).addTo(MM);forestLayers(MM);
+    var a=loadPlaces();if(a.length>1)MM.fitBounds(a.map(function(p){return[p.lat,p.lon]}),{padding:[40,40],maxZoom:13});
+    MM.on("click",function(ev){
+      var lat=Math.round(ev.latlng.lat*1e5)/1e5,lon=Math.round(ev.latlng.lng*1e5)/1e5,box=document.createElement("div"),t=document.createElement("div"),b=document.createElement("button");
+      t.textContent="Sprawdzam drzewostan…";b.type="button";b.textContent="Dodaj miejsce tutaj";box.appendChild(t);box.appendChild(b);
+      L.popup().setLatLng(ev.latlng).setContent(box).openOn(MM);
+      standFor(lat,lon).then(function(st){t.textContent=stText(st)+(st.park||st.res?". ZAKAZ ZBIORU ("+(st.park?"park narodowy":"rezerwat")+")":"")}).catch(function(){t.textContent="Nie udało się sprawdzić drzewostanu."});
+      b.addEventListener("click",function(){MM.closePopup();$("pform").hidden=false;renderPlaces();PICK.p.set(lat,lon,"punkt z mapy");$("pform").scrollIntoView({block:"center"});$("pName").focus()})});
+    $("mNote").textContent="Liczby to wskaźnik na dziś dla zapisanych miejsc. Dotknij miejsca, żeby je wybrać, albo dowolnego lasu, żeby sprawdzić drzewostan i dodać nowe miejsce.";drawMarkers();
+  },function(){$("mNote").textContent="Mapa wymaga połączenia z internetem."});
+}
 function picker(x,hint){
   var o={pos:null,map:null,marker:null};PICK[x]=o;
   o.set=function(lat,lon,src){o.pos={lat:Math.round(lat*1e5)/1e5,lon:Math.round(lon*1e5)/1e5};$(x+"Loc").textContent=fmt(o.pos.lat,5)+"°N, "+fmt(o.pos.lon,5)+"°E ("+src+")";
@@ -437,8 +475,7 @@ function picker(x,hint){
     leaflet(function(){if(o.map)return;$(x+"MapNote").textContent=hint;
       o.map=L.map(x+"Map").setView(o.pos?[o.pos.lat,o.pos.lon]:[PLACE.lat,PLACE.lon],o.pos?14:11);
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,attribution:"© OpenStreetMap"}).addTo(o.map);
-      var ov={"Drzewostany (gatunek, wiek)":wms("WMS_BDL_mapa_drzewostanow","1,0"),"Siedliska leśne":wms("WMS_BDL_mapa_siedlisk","0"),"Okresowe zakazy wstępu":wms("WMS_zakazy_wstepu_do_lasu","3"),"Własność (parki narodowe, prywatne)":wms("WMS_BDL_kat_wlasnosci","0")};
-      ov["Drzewostany (gatunek, wiek)"].addTo(o.map);ov["Okresowe zakazy wstępu"].addTo(o.map);L.control.layers(null,ov).addTo(o.map);
+      forestLayers(o.map);
       o.map.on("click",function(ev){o.set(ev.latlng.lat,ev.latlng.lng,"punkt z mapy");var q=o.pos;
         standFor(q.lat,q.lon).then(function(st){if(o.pos===q)$(x+"Loc").textContent+=" · "+stText(st)+(st.park||st.res?" · ZAKAZ ZBIORU ("+(st.park?"park narodowy":"rezerwat")+")":"")}).catch(function(){})});if(o.pos)o.set(o.pos.lat,o.pos.lon,"punkt z mapy")},
       function(){$(x+"MapNote").textContent="Mapa wymaga połączenia z internetem. Bez zasięgu użyj przycisku „Użyj mojej pozycji”."})});
@@ -463,7 +500,7 @@ if(typeof document!=="undefined"){
   picker("p","Dotknij mapy w miejscu, dla którego chcesz prognozę.");
   $("pAddBtn").addEventListener("click",function(){$("pform").hidden=false;renderPlaces();$("pName").focus()});
   $("pCancel").addEventListener("click",closePform);$("pform").addEventListener("submit",submitP);
-  renderPlaces();load();loadAll();loadStands();
+  renderPlaces();load();loadAll();loadStands();mainMap();
 }
 
 /* ---------- Dziennik zbiorów ---------- */
@@ -541,7 +578,7 @@ function exportJ(){
   catch(e){info.textContent="Nie udało się zapisać pliku w tej przeglądarce."}
 }
 function showView(){var j=location.hash==="#dziennik";$("viewJ").hidden=!j;$("viewW").hidden=j;$("tabJ").className=j?"on":"";$("tabW").className=j?"":"on";
-  if(j&&PICK.j.map)PICK.j.map.invalidateSize();if(!j&&PICK.p.map)PICK.p.map.invalidateSize();window.scrollTo(0,0)}
+  if(j&&PICK.j.map)PICK.j.map.invalidateSize();if(!j&&PICK.p.map)PICK.p.map.invalidateSize();if(!j&&MM)MM.invalidateSize();window.scrollTo(0,0)}
 if(typeof document!=="undefined"){
   buildSpecies();$("jDate").value=todayStr();$("jDate").max=todayStr();
   picker("j","Dotknij mapy w miejscu zbioru.");fillSaved();
