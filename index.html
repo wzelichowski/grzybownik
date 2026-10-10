@@ -135,8 +135,10 @@ select{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border-r
 <section>
   <h2>Drzewostan w tym miejscu</h2>
   <p class="verdict" id="stMain" style="margin:0 0 12px;font-size:1rem">Sprawdzam…</p>
+  <p class="note err-text" id="stBan" style="margin:0 0 12px;font-weight:600" hidden></p>
   <dl id="stParts"></dl>
-  <p class="note">Gatunek panujący, wiek i typ siedliska z Banku Danych o Lasach. Ocena przydatności dla gatunków grzybów to reguły robocze, niezależne od wskaźnika pogodowego. Dane nie pokazują domieszek, np. brzóz w drzewostanie sosnowym.</p>
+  <p class="note" id="stSoil"></p>
+  <p class="note">Gatunek panujący, wiek i typ siedliska z Banku Danych o Lasach. Ocena przydatności dla gatunków grzybów to reguły robocze, niezależne od wskaźnika pogodowego. Dane nie pokazują domieszek, np. brzóz w drzewostanie sosnowym. Ostrzeżenie o zakazie obejmuje lasy parków narodowych i lasy o funkcji rezerwatowej; rezerwatów poza lasem i okresowych zakazów wstępu nie wykrywa.</p>
 </section>
 
 <section>
@@ -164,9 +166,10 @@ select{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border-r
     <label for="pTw">Szerokość zakresu temperatury (± °C do zera)</label><input id="pTw" type="number" step="0.5" inputmode="decimal">
     <label for="pPsat">Opad dający maksimum (mm/dobę, średnia z 26 dni)</label><input id="pPsat" type="number" step="0.1" inputmode="decimal">
     <label for="pFrost">Próg silnego przymrozku (°C, min. z 10 dni)</label><input id="pFrost" type="number" step="0.5" inputmode="decimal">
+    <label for="pEt">Waga parowania (0 = pomijaj, 1 = odejmij od opadu całe parowanie potencjalne)</label><input id="pEt" type="number" step="0.1" min="0" max="1" inputmode="decimal">
   </div>
   <div class="row"><button class="primary" id="apply">Przelicz</button><button id="reset">Przywróć domyślne</button></div>
-  <p class="note">Temperatura i opad: okna 20 i 26 dni oraz optimum ok. 13,5°C pochodzą z 10-letniej obserwacji borowika szlachetnego w lesie bukowym (Niemcy, preprint 2025). Kara za przymrozek i próg nasycenia opadu to założenia robocze do korekty po zebraniu własnych wpisów.</p>
+  <p class="note">Temperatura i opad: okna 20 i 26 dni oraz optimum ok. 13,5°C pochodzą z 10-letniej obserwacji borowika szlachetnego w lesie bukowym (Niemcy, preprint 2025). Kara za przymrozek, próg nasycenia opadu i waga parowania to założenia robocze do korekty po zebraniu własnych wpisów. Waga parowania domyślnie wynosi 0, czyli parowanie nie zmienia wyniku.</p>
 </section>
 
 <p class="note" id="stamp" style="text-align:center"></p>
@@ -202,20 +205,20 @@ select{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border-r
 
 <script>
 /*CORE-START*/
-var DEFAULTS={Topt:13.5,Tw:5,Psat:3.5,frost:-3};
+var DEFAULTS={Topt:13.5,Tw:5,Psat:3.5,frost:-3,wEt:0};
 function mean(a){var s=0,n=0;for(var i=0;i<a.length;i++){if(a[i]!=null&&!isNaN(a[i])){s+=a[i];n++}}return n?s/n:null}
 /* days: [{date,p,tmean,tmin}] rosnąco; i: indeks ocenianego dnia */
 function evaluate(days,i,P){
   var t20=mean(days.slice(Math.max(0,i-19),i+1).map(function(d){return d.tmean}));
   var w26=days.slice(Math.max(0,i-25),i+1).map(function(d){return d.p});
-  var p26=mean(w26);
+  var p26=mean(w26),et26=mean(days.slice(Math.max(0,i-25),i+1).map(function(d){return d.et0}));
   var mins=days.slice(Math.max(0,i-9),i+1).map(function(d){return d.tmin}).filter(function(v){return v!=null});
   var tminMin=mins.length?Math.min.apply(null,mins):null;
   if(t20==null||p26==null)return null;
   var fT=Math.max(0,1-Math.pow((t20-P.Topt)/P.Tw,2));
-  var fP=Math.max(0,Math.min(1,p26/P.Psat));
+  var fP=Math.max(0,Math.min(1,(p26-(P.wEt||0)*(et26||0))/P.Psat));
   var fF=tminMin==null?1:(tminMin<=P.frost?0.3:(tminMin<=0?0.8:1));
-  return {score:Math.round(100*fT*fP*fF),t20:t20,p26:p26,pSum:p26*w26.length,tminMin:tminMin,fT:fT,fP:fP,fF:fF,full:i>=25};
+  return {score:Math.round(100*fT*fP*fF),t20:t20,p26:p26,pSum:p26*w26.length,etSum:et26==null?null:et26*w26.length,tminMin:tminMin,fT:fT,fP:fP,fF:fF,full:i>=25};
 }
 function band(s){return s>=75?["bardzo dobre","--best"]:s>=50?["dobre","--good"]:s>=25?["umiarkowane","--mid"]:["słabe","--weak"]}
 /*CORE-END*/
@@ -231,8 +234,9 @@ var SPECIES=[["Kurka (pieprznik jadalny)",6,10],["Koźlarze",6,10],["Borowik szl
 var $=function(id){return document.getElementById(id)};
 function loadP(){var p={};for(var k in DEFAULTS)p[k]=DEFAULTS[k];try{var s=JSON.parse(localStorage.getItem(KEY)||"{}");for(var k2 in DEFAULTS)if(typeof s[k2]==="number"&&isFinite(s[k2]))p[k2]=s[k2]}catch(e){}return p}
 function saveP(p){try{localStorage.setItem(KEY,JSON.stringify(p))}catch(e){}}
-function fillInputs(p){$("pTopt").value=p.Topt;$("pTw").value=p.Tw;$("pPsat").value=p.Psat;$("pFrost").value=p.frost}
-function readInputs(){var p={Topt:+$("pTopt").value,Tw:+$("pTw").value,Psat:+$("pPsat").value,frost:+$("pFrost").value};
+function fillInputs(p){$("pTopt").value=p.Topt;$("pTw").value=p.Tw;$("pPsat").value=p.Psat;$("pFrost").value=p.frost;$("pEt").value=p.wEt}
+function readInputs(){var p={Topt:+$("pTopt").value,Tw:+$("pTw").value,Psat:+$("pPsat").value,frost:+$("pFrost").value,wEt:+$("pEt").value};
+  if(!(p.wEt>=0&&p.wEt<=1))p.wEt=DEFAULTS.wEt;
   if(!(p.Tw>0))p.Tw=DEFAULTS.Tw;if(!(p.Psat>0))p.Psat=DEFAULTS.Psat;if(!isFinite(p.Topt))p.Topt=DEFAULTS.Topt;if(!isFinite(p.frost))p.frost=DEFAULTS.frost;return p}
 function fmt(v,d){return v==null?"–":v.toFixed(d).replace(".",",")}
 function todayStr(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Warsaw"}).format(new Date())}
@@ -279,6 +283,10 @@ function render(){
   row("Suma opadów, 26 dni","maksimum od "+fmt(P.Psat*26,0)+" mm ("+fmt(P.Psat,1)+" mm/dobę)",fmt(e.pSum,0)+" mm","czynnik "+fmt(e.fP,2));
   row("Najniższa temperatura, 10 dni","≤ 0°C: ×0,8; ≤ "+fmt(P.frost,1)+"°C: ×0,3",fmt(e.tminMin,1)+"°C","czynnik "+fmt(e.fF,2));
   row("Wynik","temperatura × opad × przymrozek × 100",String(e.score),"");
+  var d0=DAYS[ti],d7=DAYS[Math.max(0,ti-7)];
+  if(e.etSum!=null)row("Parowanie potencjalne, 26 dni","bilans wodny: opad minus parowanie",fmt(e.etSum,0)+" mm","bilans "+(e.pSum-e.etSum>0?"+":"")+fmt(e.pSum-e.etSum,0)+" mm");
+  if(d0.sm!=null)row("Wilgotność gleby (model)","informacyjnie, bez wpływu na wynik",fmt(d0.sm,2)+" m³/m³",d7.sm!=null?"7 dni temu "+fmt(d7.sm,2):"");
+  if(d0.ts!=null)row("Temperatura gleby (model)","informacyjnie, bez wpływu na wynik",fmt(d0.ts,1)+"°C",d7.ts!=null?"7 dni temu "+fmt(d7.ts,1)+"°C":"");
 
   var m=+t.slice(5,7),ul=$("season");ul.textContent="";
   var MON=["","I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"];
@@ -289,12 +297,23 @@ function render(){
 function showErr(msg){var b=$("error");b.textContent=msg;b.hidden=false;$("score").textContent="–";$("score").style.color="";$("verdict").textContent="Brak danych";
   $("marker").style.left="0%";$("best").textContent="";$("chart").textContent="";$("axis").textContent="";$("parts").textContent="";$("stamp").textContent=""}
 function stampTime(at){return new Date(at).toLocaleString("pl-PL",{dateStyle:"short",timeStyle:"short"})}
+function wxParse(j){
+  var d=j.daily;if(!d||!d.time||!d.time.length)throw new Error("nieoczekiwany format odpowiedzi");
+  var h=j.hourly||{},ht=h.time||[],hm=h.soil_moisture_3_to_9cm||h.soil_moisture_0_to_7cm||[],hs=h.soil_temperature_6cm||h.soil_temperature_0_to_7cm||[],agg={};
+  for(var k=0;k<ht.length;k++){var day=ht[k].slice(0,10),a=agg[day]||(agg[day]={m:[],t:[]});a.m.push(hm[k]);a.t.push(hs[k])}
+  var e=d.et0_fao_evapotranspiration||[];
+  return d.time.map(function(x,i){var a=agg[x];return{date:x,p:d.precipitation_sum[i],tmean:d.temperature_2m_mean[i],tmin:d.temperature_2m_min[i],et0:e[i]==null?null:e[i],sm:a?mean(a.m):null,ts:a?mean(a.t):null}});
+}
+/* Najpierw zapytanie rozszerzone (parowanie, gleba); gdy serwer je odrzuci, samo podstawowe. */
+function wxGet(lat,lon,range,archive){
+  var base=(archive?"https://archive-api.open-meteo.com/v1/archive":"https://api.open-meteo.com/v1/forecast")+"?latitude="+lat+"&longitude="+lon+"&timezone=Europe%2FWarsaw&"+range+"&daily=precipitation_sum,temperature_2m_mean,temperature_2m_min",
+    rich=base+",et0_fao_evapotranspiration&hourly="+(archive?"soil_temperature_0_to_7cm,soil_moisture_0_to_7cm":"soil_temperature_6cm,soil_moisture_3_to_9cm");
+  function get(u){return fetch(u).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json()}).then(wxParse)}
+  return get(rich).catch(function(){return get(base)});
+}
 function fetchDays(p){
-  var url="https://api.open-meteo.com/v1/forecast?latitude="+p.lat+"&longitude="+p.lon+
-    "&daily=precipitation_sum,temperature_2m_mean,temperature_2m_min&past_days=40&forecast_days=10&timezone=Europe%2FWarsaw",ck="grzybownik.cache."+p.id;
-  return fetch(url).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json()}).then(function(j){
-    var d=j.daily;if(!d||!d.time)throw new Error("nieoczekiwany format odpowiedzi");
-    var days=d.time.map(function(x,i){return{date:x,p:d.precipitation_sum[i],tmean:d.temperature_2m_mean[i],tmin:d.temperature_2m_min[i]}});
+  var ck="grzybownik.cache."+p.id;
+  return wxGet(p.lat,p.lon,"past_days=40&forecast_days=10",false).then(function(days){
     try{localStorage.setItem(ck,JSON.stringify({at:Date.now(),days:days}))}catch(e){}
     return{days:days,at:Date.now(),stale:false};
   }).catch(function(err){var c=null;try{c=JSON.parse(localStorage.getItem(ck)||"null")}catch(e){}
@@ -317,7 +336,7 @@ function renderPlaces(){
   a.forEach(function(p){
     var row=document.createElement("div");row.className="prow";
     var b=document.createElement("button");b.type="button";b.className="pname"+(p.id===PLACE.id?" on":"");b.textContent=p.name;
-    var stp=stCache()[p.lat+","+p.lon];if(stp&&(stp.tree||stp.site)){var sm=document.createElement("small");sm.textContent=stText(stp);b.appendChild(sm)}
+    var stp=stCache()[p.lat+","+p.lon];if(stp&&(stp.tree||stp.site||stp.park)){var sm=document.createElement("small");sm.textContent=(stp.park||stp.res?"ZAKAZ ZBIORU · ":"")+stText(stp);b.appendChild(sm)}
     b.addEventListener("click",function(){selectPlace(p)});row.appendChild(b);
     var s=document.createElement("span"),r=DAYSBY[p.id],e=r?evaluate(r.days,tIndex(r.days),P):null;s.className="ps num";
     s.textContent=e?e.score:"–";if(e)s.style.color="var("+band(e.score)[1]+")";row.appendChild(s);
@@ -345,7 +364,7 @@ function suit(k,st){var R=SUIT[k],a=R.site[st.site]||0,t=R.tree[st.tree]||0,youn
     young&&tot>=2?"drzewostan młody, poniżej "+R.age+" lat":tot>=4?"gatunek drzew i siedlisko pasują":tot>=2?(a>=t?"pasuje głównie siedlisko":"pasuje głównie gatunek drzew"):"gatunek drzew i siedlisko nie pasują"]}
 /*STAND-END*/
 function stCache(){try{var c=JSON.parse(localStorage.getItem(STKEY)||"{}");return c&&typeof c==="object"?c:{}}catch(e){return{}}}
-function stText(st){if(!st||(!st.tree&&!st.site))return"brak opisu w Banku Danych o Lasach";
+function stText(st){if(!st||(!st.tree&&!st.site))return st&&st.park?"las parku narodowego":"brak opisu w Banku Danych o Lasach";
   return(st.tree?(TREE[st.tree]||st.tree)+(st.age!=null?" "+st.age+" lat":""):"drzewostan bez opisu")+(st.site?" · "+(SITE[st.site]||st.site):"")}
 function jsonp(url){return new Promise(function(res,rej){
   var cb="__bdl"+Date.now().toString(36)+Math.floor(Math.random()*1e6),el=document.createElement("script"),t=setTimeout(function(){done();rej(new Error("timeout"))},15000);
@@ -356,22 +375,34 @@ function bdlQ(svc,layer,lat,lon){
   return getJson(BDL+"rest/services/"+svc+"/MapServer/"+layer+"/query?geometry="+lon+","+lat+"&geometryType=esriGeometryPoint&inSR=4326&outFields=*&returnGeometry=false&f=json")
     .then(function(j){if(!j||j.error||!j.features)throw new Error("BDL");return j.features.map(function(f){return f.attributes||{}})})}
 function tr(v){return v==null?"":String(v).trim()}
+var SOIL={RDw:"rdzawa właściwa",RDb:"rdzawa bielicowa",RDbr:"rdzawa brunatna",Bw:"bielicowa właściwa",BRk:"brunatna kwaśna",BRw:"brunatna właściwa",Pw:"płowa właściwa"};
+var TEX={pl:"piasek luźny",ps:"piasek słabogliniasty",pg:"piasek gliniasty",gp:"glina piaszczysta",gl:"glina lekka"};
+var SITEUP={};Object.keys(SITE).forEach(function(k){SITEUP[k.toUpperCase()]=k});
+function banText(st){return st.park?"Las w zarządzie parku narodowego. Zbiór grzybów jest zabroniony poza miejscami wyznaczonymi przez dyrektora parku.":st.res?"Rezerwat przyrody. Zbiór grzybów jest zabroniony.":""}
 function standFor(lat,lon){
-  var k=lat+","+lon,c=stCache();if(c[k])return Promise.resolve(c[k]);
-  var st={tree:"",age:null,cls:"",site:"",lp:null};
-  return bdlQ("WMS_BDL_mapa_drzewostanow",11,lat,lon).then(function(a){if(a.length){st.lp=true;return a}
-      return bdlQ("WMS_BDL_mapa_drzewostanow",12,lat,lon).then(function(b){if(b.length)st.lp=false;return b})})
-    .then(function(a){a.sort(function(x,y){return(x.storey_rank_order||9)-(y.storey_rank_order||9)||(parseInt(y.part_cd,10)||0)-(parseInt(x.part_cd,10)||0)});
-      var f=a[0];if(f){st.tree=tr(f.species_cd||f.gat_grp).split(".")[0];st.age=f.species_age==null?null:+f.species_age;st.cls=tr(f.age_class)}
-      return bdlQ("WMS_BDL_mapa_siedlisk",7,lat,lon)})
-    .then(function(a){if(a.length)st.site=tr(a[0].site_type_cd);st.at=Date.now();var c2=stCache();c2[k]=st;try{localStorage.setItem(STKEY,JSON.stringify(c2))}catch(e){}return st});
+  var k=lat+","+lon,c=stCache();if(c[k]&&c[k].v===2)return Promise.resolve(c[k]);
+  var st={v:2,tree:"",age:null,cls:"",site:"",soil:"",tex:"",moist:"",func:"",owner:"",park:false,res:false,lp:null},KW="WMS_BDL_kat_wlasnosci";
+  return bdlQ(KW,5,lat,lon).then(function(a){if(a.length){st.lp=true;st.owner="Lasy Państwowe";return a}
+      return bdlQ(KW,6,lat,lon).then(function(b){if(b.length){st.lp=false;st.owner=tr(b[0].owner_cat_name)}return b})})
+    .then(function(a){var f=a[0];if(f){st.tree=tr(f.species_cd_d).split(".")[0];st.age=f.species_age==null?null:+f.species_age;
+        st.cls=st.age>0?["I","II","III","IV","V","VI","VII","VIII"][Math.min(7,Math.floor((st.age-1)/20))]:"";
+        var up=tr(f.site_type_cd).toUpperCase();st.site=SITEUP[up]||tr(f.site_type_cd);st.func=tr(f.forest_func_cd);
+        st.park=/Park.w Narodowych/i.test(st.owner);st.res=/^REZ/i.test(st.func)}
+      return bdlQ("WMS_BDL_mapa_siedlisk",7,lat,lon).catch(function(){return[]})})
+    .then(function(a){var f=a[0];if(f){if(tr(f.site_type_cd))st.site=tr(f.site_type_cd);st.soil=tr(f.soil_subtype_cd);st.tex=tr(f.soil_species);st.moist=tr(f.moisture_cd)}
+      st.at=Date.now();var c2=stCache();c2[k]=st;try{localStorage.setItem(STKEY,JSON.stringify(c2))}catch(e){}return st});
 }
 function showStand(){
-  var p=PLACE,main=$("stMain"),dl=$("stParts");main.textContent="Sprawdzam…";dl.textContent="";
+  var p=PLACE,main=$("stMain"),dl=$("stParts"),ban=$("stBan"),soil=$("stSoil");main.textContent="Sprawdzam…";dl.textContent="";ban.hidden=true;soil.textContent="";
   standFor(p.lat,p.lon).then(function(st){if(p.id!==PLACE.id)return;renderPlaces();
-    if(!st.tree&&!st.site){main.textContent="Ten punkt leży poza lasem opisanym w Banku Danych o Lasach.";return}
-    main.textContent=stText(st)+(st.cls?" ("+st.cls+" klasa wieku)":"")+(st.lp===false?" · las poza Lasami Państwowymi":"");
-    SP.forEach(function(x){var r=suit(x[0],st),dt=document.createElement("dt"),dd=document.createElement("dd"),sm=document.createElement("small");
+    if(!st.tree&&!st.site&&!st.owner){main.textContent="Ten punkt leży poza lasem opisanym w Banku Danych o Lasach.";return}
+    main.textContent=stText(st)+(st.cls?" ("+st.cls+" klasa wieku)":"");
+    var bt=banText(st);if(bt){ban.textContent=bt;ban.hidden=false}
+    var bits=[];if(st.owner)bits.push("Własność: "+st.owner);
+    if(st.soil||st.tex)bits.push("Gleba: "+[st.soil?(SOIL[st.soil]?SOIL[st.soil]+" ("+st.soil+")":st.soil):"",st.tex?st.tex.split("/").map(function(t){return TEX[t]||t}).join(" / "):""].filter(Boolean).join(", "));
+    if(st.moist)bits.push("Wariant uwilgotnienia siedliska: "+st.moist);
+    soil.textContent=bits.join(". ")+(bits.length?".":"");
+    if(st.tree||st.site)SP.forEach(function(x){var r=suit(x[0],st),dt=document.createElement("dt"),dd=document.createElement("dd"),sm=document.createElement("small");
       dt.textContent=x[1];dd.textContent=r[0];sm.textContent=r[1];dd.appendChild(sm);dl.appendChild(dt);dl.appendChild(dd)});
   }).catch(function(){if(p.id===PLACE.id)main.textContent="Nie udało się pobrać danych o drzewostanie. Spróbuj ponownie przy połączeniu z internetem."});
 }
@@ -403,10 +434,10 @@ function picker(x,hint){
     leaflet(function(){if(o.map)return;$(x+"MapNote").textContent=hint;
       o.map=L.map(x+"Map").setView(o.pos?[o.pos.lat,o.pos.lon]:[PLACE.lat,PLACE.lon],o.pos?14:11);
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,attribution:"© OpenStreetMap"}).addTo(o.map);
-      var ov={"Drzewostany (gatunek, wiek)":wms("WMS_BDL_mapa_drzewostanow","1,0"),"Siedliska leśne":wms("WMS_BDL_mapa_siedlisk","0"),"Okresowe zakazy wstępu":wms("WMS_zakazy_wstepu_do_lasu","3")};
+      var ov={"Drzewostany (gatunek, wiek)":wms("WMS_BDL_mapa_drzewostanow","1,0"),"Siedliska leśne":wms("WMS_BDL_mapa_siedlisk","0"),"Okresowe zakazy wstępu":wms("WMS_zakazy_wstepu_do_lasu","3"),"Własność (parki narodowe, prywatne)":wms("WMS_BDL_kat_wlasnosci","0")};
       ov["Drzewostany (gatunek, wiek)"].addTo(o.map);ov["Okresowe zakazy wstępu"].addTo(o.map);L.control.layers(null,ov).addTo(o.map);
       o.map.on("click",function(ev){o.set(ev.latlng.lat,ev.latlng.lng,"punkt z mapy");var q=o.pos;
-        standFor(q.lat,q.lon).then(function(st){if(o.pos===q)$(x+"Loc").textContent+=" · "+stText(st)}).catch(function(){})});if(o.pos)o.set(o.pos.lat,o.pos.lon,"punkt z mapy")},
+        standFor(q.lat,q.lon).then(function(st){if(o.pos===q)$(x+"Loc").textContent+=" · "+stText(st)+(st.park||st.res?" · ZAKAZ ZBIORU ("+(st.park?"park narodowy":"rezerwat")+")":"")}).catch(function(){})});if(o.pos)o.set(o.pos.lat,o.pos.lon,"punkt z mapy")},
       function(){$(x+"MapNote").textContent="Mapa wymaga połączenia z internetem. Bez zasięgu użyj przycisku „Użyj mojej pozycji”."})});
   return o;
 }
@@ -438,24 +469,20 @@ var armed=null;
 function loadJ(){try{var a=JSON.parse(localStorage.getItem(JKEY)||"[]");return Array.isArray(a)?a:[]}catch(e){return[]}}
 function saveJ(a){try{localStorage.setItem(JKEY,JSON.stringify(a));return true}catch(e){return false}}
 function addDays(s,n){var d=new Date(s+"T12:00:00Z");d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
-function wxUrl(lat,lon,date){
-  var age=Math.round((Date.parse(todayStr())-Date.parse(date))/864e5);
-  var host=age>60?"https://archive-api.open-meteo.com/v1/archive":"https://api.open-meteo.com/v1/forecast";
-  return host+"?latitude="+lat+"&longitude="+lon+"&daily=precipitation_sum,temperature_2m_mean,temperature_2m_min&start_date="+addDays(date,-25)+"&end_date="+date+"&timezone=Europe%2FWarsaw";
-}
 function fillWeather(id){
   var e=loadJ().filter(function(x){return x.id===id})[0];if(!e||e.wx)return Promise.resolve();
-  return fetch(wxUrl(e.lat,e.lon,e.date)).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json()}).then(function(j){
-    var d=j.daily;if(!d||!d.time||!d.time.length)throw new Error("brak danych");
-    var days=d.time.map(function(x,i){return{date:x,p:d.precipitation_sum[i],tmean:d.temperature_2m_mean[i],tmin:d.temperature_2m_min[i]}});
-    var ev=evaluate(days,days.length-1,DEFAULTS);if(!ev)throw new Error("brak danych");
-    var all=loadJ();all.forEach(function(x){if(x.id===id)x.wx={score:ev.score,p26:Math.round(ev.pSum*10)/10,t20:Math.round(ev.t20*10)/10,tmin10:ev.tminMin,days:days.map(function(y){return[y.p,y.tmean,y.tmin]})}});
+  var age=Math.round((Date.parse(todayStr())-Date.parse(e.date))/864e5);
+  return wxGet(e.lat,e.lon,"start_date="+addDays(e.date,-25)+"&end_date="+e.date,age>60).then(function(days){
+    var ev=evaluate(days,days.length-1,DEFAULTS),last=days[days.length-1];if(!ev)throw new Error("brak danych");
+    function r1(v,k){return v==null?null:Math.round(v*k)/k}
+    var all=loadJ();all.forEach(function(x){if(x.id===id)x.wx={score:ev.score,p26:r1(ev.pSum,10),t20:r1(ev.t20,10),tmin10:ev.tminMin,et26:r1(ev.etSum,10),sm:r1(last.sm,1000),ts:r1(last.ts,10),
+      days:days.map(function(y){return[y.p,y.tmean,y.tmin,y.et0]})}});
     saveJ(all);renderJ();
   }).catch(function(){});
 }
 function fillStand(id){
   var e=loadJ().filter(function(x){return x.id===id})[0];if(!e||e.st)return Promise.resolve();
-  return standFor(e.lat,e.lon).then(function(st){var all=loadJ();all.forEach(function(x){if(x.id===id)x.st={tree:st.tree,age:st.age,site:st.site}});saveJ(all);renderJ()}).catch(function(){});
+  return standFor(e.lat,e.lon).then(function(st){var all=loadJ();all.forEach(function(x){if(x.id===id)x.st={tree:st.tree,age:st.age,site:st.site,soil:st.soil,func:st.func,owner:st.owner}});saveJ(all);renderJ()}).catch(function(){});
 }
 function syncPending(){var p=loadJ().filter(function(x){return !x.wx||!x.st}),i=0;(function next(){if(i<p.length){var id=p[i++].id;fillWeather(id).then(function(){return fillStand(id)}).then(next)}})()}
 function buildSpecies(){var box=$("jSpecies");box.textContent="";SP.forEach(function(s){
@@ -498,8 +525,8 @@ function renderJ(){
 function toCsv(all){
   function q(v){v=v==null?"":String(v);return /[";\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
   function n(v){return v==null?"":String(v).replace(".",",")}
-  var rows=[["data","miejsce","szerokosc","dlugosc"].concat(SP.map(function(s){return s[0]}),["wskaznik","opad_26d_mm","temp_20d_C","tmin_10d_C","drzewa","wiek_drzew","siedlisko","notatka"])];
-  all.forEach(function(e){var w=e.wx||{},z=e.st||{};rows.push([e.date,e.place,n(e.lat),n(e.lon)].concat(SP.map(function(s){return e.a[s[0]]}),[n(w.score),n(w.p26),n(w.t20),n(w.tmin10),z.tree,z.age,z.site,e.note]))});
+  var rows=[["data","miejsce","szerokosc","dlugosc"].concat(SP.map(function(s){return s[0]}),["wskaznik","opad_26d_mm","temp_20d_C","tmin_10d_C","parowanie_26d_mm","wilg_gleby","temp_gleby_C","drzewa","wiek_drzew","siedlisko","gleba","funkcja_lasu","wlasnosc","notatka"])];
+  all.forEach(function(e){var w=e.wx||{},z=e.st||{};rows.push([e.date,e.place,n(e.lat),n(e.lon)].concat(SP.map(function(s){return e.a[s[0]]}),[n(w.score),n(w.p26),n(w.t20),n(w.tmin10),n(w.et26),n(w.sm),n(w.ts),z.tree,z.age,z.site,z.soil,z.func,z.owner,e.note]))});
   return rows.map(function(r){return r.map(q).join(";")}).join("\r\n");
 }
 function exportJ(){
