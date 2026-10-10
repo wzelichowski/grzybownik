@@ -82,7 +82,7 @@ textarea{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border
 .seg span{display:block;text-align:center;padding:9px 0;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
 .seg input:checked+span{background:var(--pine);color:var(--bg);border-color:var(--pine);font-weight:700}
 .seg input:focus-visible+span{outline:2px solid var(--cap);outline-offset:2px}
-#map{height:280px;border-radius:8px;border:1px solid var(--line);margin-top:10px;z-index:0}
+.map{height:280px;border-radius:8px;border:1px solid var(--line);margin-top:10px;z-index:0}
 .err-text{color:var(--cap)}
 .entry{padding:12px 0;border-top:1px solid var(--line);display:grid;gap:4px}
 .entry:first-child{border-top:0;padding-top:0}
@@ -90,6 +90,13 @@ textarea{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border
 .entry .head .num{white-space:nowrap}
 .entry .meta{font-size:.82rem;color:var(--mute)}
 .entry button{justify-self:start;padding:6px 10px;font-size:.8rem;margin-top:4px}
+.prow{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line)}
+.prow:first-child{border-top:0;padding-top:0}
+.prow .pname{flex:1;min-width:0;text-align:left;border:0;background:none;padding:6px 0;font-weight:600;overflow-wrap:anywhere}
+.prow .pname.on::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--moss);margin-right:8px}
+.prow .ps{font-weight:700;min-width:2.2rem;text-align:right}
+.prow .del{padding:6px 10px;font-size:.8rem}
+select{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
 .empty{color:var(--mute);font-size:.9rem;margin:0}
 </style>
 </head>
@@ -106,6 +113,21 @@ textarea{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border
   <div class="scale"><i id="marker" style="left:0%"></i></div>
   <div class="ticks num"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
   <p class="note" id="best"></p>
+</section>
+
+<section>
+  <h2>Moje miejsca</h2>
+  <div id="places"></div>
+  <div class="row"><button type="button" id="pAddBtn">Dodaj miejsce</button></div>
+  <form id="pform" class="form" novalidate hidden>
+    <label for="pName">Nazwa miejsca</label><input id="pName" type="text" maxlength="40" placeholder="np. las za Brochowem" autocomplete="off">
+    <div class="row"><button type="button" id="pGps">Użyj mojej pozycji</button><button type="button" id="pPick">Wskaż na mapie</button></div>
+    <p class="note num" id="pLoc">Nie wybrano punktu.</p>
+    <div id="pMapBox" hidden><div id="pMap" class="map"></div><p class="note" id="pMapNote">Dotknij mapy w miejscu, dla którego chcesz prognozę.</p></div>
+    <p class="note err-text" id="pErr" hidden></p>
+    <div class="row"><button class="primary" type="submit">Zapisz miejsce</button><button type="button" id="pCancel">Anuluj</button></div>
+  </form>
+  <p class="note">Liczba przy miejscu to wskaźnik na dziś. Dotknij nazwy, żeby zobaczyć pełną prognozę. Miejsca oddalone o kilka kilometrów mają zwykle prawie ten sam wynik, bo model pogody ma rozdzielczość rzędu kilku kilometrów.</p>
 </section>
 
 <section>
@@ -147,10 +169,11 @@ textarea{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border
   <form id="jform" class="form" novalidate>
     <label for="jDate">Data wyjazdu</label><input id="jDate" type="date" required>
     <label for="jPlace">Nazwa miejsca (opcjonalnie)</label><input id="jPlace" type="text" maxlength="60" placeholder="np. las za Brochowem" autocomplete="off">
+    <label for="jSaved">Zapisane miejsce</label><select id="jSaved"></select>
     <div><span class="lab">Lokalizacja</span>
       <div class="row"><button type="button" id="jGps">Użyj mojej pozycji</button><button type="button" id="jPick">Wskaż na mapie</button></div>
       <p class="note num" id="jLoc">Nie wybrano punktu.</p>
-      <div id="mapBox" hidden><div id="map"></div><p class="note" id="mapNote">Dotknij mapy w miejscu zbioru.</p></div>
+      <div id="jMapBox" hidden><div id="jMap" class="map"></div><p class="note" id="jMapNote">Dotknij mapy w miejscu zbioru.</p></div>
     </div>
     <div><span class="lab">Obfitość: 0 = nic, 5 = wysyp. Wyjazd bez zbiorów też zapisz.</span><div id="jSpecies"></div></div>
     <label for="jNote">Notatka</label><textarea id="jNote" rows="2" maxlength="300"></textarea>
@@ -188,7 +211,12 @@ function evaluate(days,i,P){
 function band(s){return s>=75?["bardzo dobre","--best"]:s>=50?["dobre","--good"]:s>=25?["umiarkowane","--mid"]:["słabe","--weak"]}
 /*CORE-END*/
 
-var LAT=52.229,LON=20.238,KEY="grzybownik.params";
+var KEY="grzybownik.params",PKEY="grzybownik.places",SKEY="grzybownik.place";
+var HOME={id:"home",name:"Sochaczew",lat:52.229,lon:20.238},DAYSBY={},armedP=null;
+function loadPlaces(){var a=[];try{a=JSON.parse(localStorage.getItem(PKEY)||"[]")}catch(e){}return [HOME].concat(Array.isArray(a)?a:[])}
+function savePlaces(a){try{localStorage.setItem(PKEY,JSON.stringify(a.filter(function(p){return p.id!=="home"})));return true}catch(e){return false}}
+function curPlace(){var id=null;try{id=localStorage.getItem(SKEY)}catch(e){}var a=loadPlaces();return a.filter(function(p){return p.id===id})[0]||a[0]}
+var PLACE=curPlace();
 var SPECIES=[["Kurka (pieprznik jadalny)",6,10],["Koźlarze",6,10],["Borowik szlachetny",7,11],["Podgrzybek brunatny",8,11]];
 var $=function(id){return document.getElementById(id)};
 function loadP(){var p={};for(var k in DEFAULTS)p[k]=DEFAULTS[k];try{var s=JSON.parse(localStorage.getItem(KEY)||"{}");for(var k2 in DEFAULTS)if(typeof s[k2]==="number"&&isFinite(s[k2]))p[k2]=s[k2]}catch(e){}return p}
@@ -201,11 +229,12 @@ function todayStr(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/War
 function dm(s){return (+s.slice(8))+"."+(+s.slice(5,7))}
 var DAYS=null;
 
+function tIndex(days){var t=todayStr(),ti=-1;for(var i=0;i<days.length;i++)if(days[i].date===t)ti=i;
+  return ti<0?Math.min(days.length-1,Math.max(0,days.length-10)):ti}
 function render(){
   if(!DAYS)return;
   var P=loadP(),t=todayStr(),ti=-1;
-  for(var i=0;i<DAYS.length;i++)if(DAYS[i].date===t)ti=i;
-  if(ti<0)ti=Math.min(DAYS.length-1,Math.max(0,DAYS.length-10));
+  ti=tIndex(DAYS);
   var e=evaluate(DAYS,ti,P);
   if(!e){showErr("Za mało danych pogodowych do obliczenia wskaźnika.");return}
   var b=band(e.score);
@@ -247,34 +276,103 @@ function render(){
     var bEl=document.createElement("b");bEl.textContent=s[0];var sp=document.createElement("span");sp.className="num";sp.textContent=MON[s[1]]+"–"+MON[s[2]];
     li.appendChild(bEl);li.appendChild(sp);ul.appendChild(li)});
 }
-function showErr(msg){var b=$("error");b.textContent=msg;b.hidden=false;$("verdict").textContent="Brak danych"}
-
-function load(){
-  var url="https://api.open-meteo.com/v1/forecast?latitude="+LAT+"&longitude="+LON+
-    "&daily=precipitation_sum,temperature_2m_mean,temperature_2m_min&past_days=40&forecast_days=10&timezone=Europe%2FWarsaw";
-  fetch(url).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json()}).then(function(j){
+function showErr(msg){var b=$("error");b.textContent=msg;b.hidden=false;$("score").textContent="–";$("score").style.color="";$("verdict").textContent="Brak danych";
+  $("marker").style.left="0%";$("best").textContent="";$("chart").textContent="";$("axis").textContent="";$("parts").textContent="";$("stamp").textContent=""}
+function stampTime(at){return new Date(at).toLocaleString("pl-PL",{dateStyle:"short",timeStyle:"short"})}
+function fetchDays(p){
+  var url="https://api.open-meteo.com/v1/forecast?latitude="+p.lat+"&longitude="+p.lon+
+    "&daily=precipitation_sum,temperature_2m_mean,temperature_2m_min&past_days=40&forecast_days=10&timezone=Europe%2FWarsaw",ck="grzybownik.cache."+p.id;
+  return fetch(url).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json()}).then(function(j){
     var d=j.daily;if(!d||!d.time)throw new Error("nieoczekiwany format odpowiedzi");
-    DAYS=d.time.map(function(x,i){return{date:x,p:d.precipitation_sum[i],tmean:d.temperature_2m_mean[i],tmin:d.temperature_2m_min[i]}});
-    try{localStorage.setItem("grzybownik.cache",JSON.stringify({at:Date.now(),days:DAYS}))}catch(e){}
-    $("stamp").textContent="Dane pogodowe: Open-Meteo, pobrane "+new Date().toLocaleString("pl-PL",{dateStyle:"short",timeStyle:"short"});
-    render();
-  }).catch(function(err){
-    var c=null;try{c=JSON.parse(localStorage.getItem("grzybownik.cache")||"null")}catch(e){}
-    if(c&&c.days){DAYS=c.days;render();
-      $("stamp").textContent="Brak połączenia. Pokazuję dane zapisane "+new Date(c.at).toLocaleString("pl-PL",{dateStyle:"short",timeStyle:"short"});
-    }else showErr("Nie udało się pobrać danych pogodowych ("+err.message+"). Sprawdź połączenie i odśwież stronę.");
-  });
+    var days=d.time.map(function(x,i){return{date:x,p:d.precipitation_sum[i],tmean:d.temperature_2m_mean[i],tmin:d.temperature_2m_min[i]}});
+    try{localStorage.setItem(ck,JSON.stringify({at:Date.now(),days:days}))}catch(e){}
+    return{days:days,at:Date.now(),stale:false};
+  }).catch(function(err){var c=null;try{c=JSON.parse(localStorage.getItem(ck)||"null")}catch(e){}
+    if(c&&c.days)return{days:c.days,at:c.at,stale:true};throw err});
 }
+function showPlace(r){DAYS=r.days;$("error").hidden=true;
+  $("stamp").textContent=r.stale?"Brak połączenia. Pokazuję dane zapisane "+stampTime(r.at):"Dane pogodowe: Open-Meteo, pobrane "+stampTime(r.at);render()}
+function load(){
+  var p=PLACE;$("place").textContent=p.name+" · "+fmt(p.lat,2)+"°N "+fmt(p.lon,2)+"°E";
+  if(DAYSBY[p.id]){showPlace(DAYSBY[p.id]);return}
+  DAYS=null;$("error").hidden=true;$("score").textContent="–";$("verdict").textContent="Pobieram dane…";
+  fetchDays(p).then(function(r){DAYSBY[p.id]=r;renderPlaces();if(p.id===PLACE.id)showPlace(r)})
+    .catch(function(err){if(p.id===PLACE.id)showErr("Nie udało się pobrać danych pogodowych ("+err.message+"). Sprawdź połączenie i odśwież stronę.")});
+}
+function loadAll(){var a=loadPlaces().filter(function(p){return !DAYSBY[p.id]&&p.id!==PLACE.id}),i=0;
+  (function next(){if(i>=a.length)return;var p=a[i++];fetchDays(p).then(function(r){DAYSBY[p.id]=r;renderPlaces()}).catch(function(){}).then(next)})()}
+function selectPlace(p){PLACE=p;try{localStorage.setItem(SKEY,p.id)}catch(e){}renderPlaces();load();window.scrollTo(0,0)}
+function renderPlaces(){
+  var a=loadPlaces(),box=$("places"),P=loadP();box.textContent="";
+  a.forEach(function(p){
+    var row=document.createElement("div");row.className="prow";
+    var b=document.createElement("button");b.type="button";b.className="pname"+(p.id===PLACE.id?" on":"");b.textContent=p.name;
+    b.addEventListener("click",function(){selectPlace(p)});row.appendChild(b);
+    var s=document.createElement("span"),r=DAYSBY[p.id],e=r?evaluate(r.days,tIndex(r.days),P):null;s.className="ps num";
+    s.textContent=e?e.score:"–";if(e)s.style.color="var("+band(e.score)[1]+")";row.appendChild(s);
+    if(p.id!=="home"){var d=document.createElement("button");d.type="button";d.className="del";d.textContent=armedP===p.id?"Potwierdź":"Usuń";
+      d.addEventListener("click",function(){if(armedP!==p.id){armedP=p.id;renderPlaces();return}
+        armedP=null;savePlaces(loadPlaces().filter(function(x){return x.id!==p.id}));try{localStorage.removeItem("grzybownik.cache."+p.id)}catch(e2){}
+        delete DAYSBY[p.id];if(PLACE.id===p.id)selectPlace(HOME);else renderPlaces();fillSaved()});
+      row.appendChild(d)}
+    box.appendChild(row)});
+  $("pAddBtn").hidden=a.length>=12||!$("pform").hidden;
+}
+
+/* Wybór punktu: GPS albo mapa. Używany w miejscach (prefiks p) i w dzienniku (prefiks j). */
+var PICK={};
+function leaflet(ok,fail){
+  if(window.L)return ok();
+  var css=document.createElement("link");css.rel="stylesheet";css.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";document.head.appendChild(css);
+  var s=document.createElement("script");s.src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";s.onload=ok;s.onerror=fail;document.head.appendChild(s);
+}
+function picker(x,hint){
+  var o={pos:null,map:null,marker:null};PICK[x]=o;
+  o.set=function(lat,lon,src){o.pos={lat:Math.round(lat*1e5)/1e5,lon:Math.round(lon*1e5)/1e5};$(x+"Loc").textContent=fmt(o.pos.lat,5)+"°N, "+fmt(o.pos.lon,5)+"°E ("+src+")";
+    if(o.map){if(o.marker)o.map.removeLayer(o.marker);o.marker=L.circleMarker([o.pos.lat,o.pos.lon],{radius:9,weight:3,color:"#24382c",fillColor:"#9a5a2b",fillOpacity:1}).addTo(o.map)}};
+  o.reset=function(){o.pos=null;$(x+"Loc").textContent="Nie wybrano punktu.";if(o.map&&o.marker){o.map.removeLayer(o.marker);o.marker=null}};
+  $(x+"Gps").addEventListener("click",function(){
+    if(!navigator.geolocation){$(x+"Loc").textContent="Ta przeglądarka nie udostępnia pozycji. Wskaż punkt na mapie.";return}
+    $(x+"Loc").textContent="Ustalam pozycję…";
+    navigator.geolocation.getCurrentPosition(function(p){o.set(p.coords.latitude,p.coords.longitude,"GPS, dokładność ok. "+Math.round(p.coords.accuracy)+" m");if(o.map)o.map.setView([o.pos.lat,o.pos.lon],14)},
+      function(err){$(x+"Loc").textContent=err.code===1?"Brak zgody na dostęp do pozycji. Włącz ją w ustawieniach przeglądarki albo wskaż punkt na mapie.":"Nie udało się ustalić pozycji. Spróbuj ponownie na otwartym terenie albo wskaż punkt na mapie."},
+      {enableHighAccuracy:true,timeout:20000,maximumAge:60000})});
+  $(x+"Pick").addEventListener("click",function(){
+    $(x+"MapBox").hidden=false;
+    if(o.map){o.map.invalidateSize();return}
+    $(x+"MapNote").textContent="Ładuję mapę…";
+    leaflet(function(){if(o.map)return;$(x+"MapNote").textContent=hint;
+      o.map=L.map(x+"Map").setView(o.pos?[o.pos.lat,o.pos.lon]:[PLACE.lat,PLACE.lon],o.pos?14:11);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,attribution:"© OpenStreetMap"}).addTo(o.map);
+      o.map.on("click",function(ev){o.set(ev.latlng.lat,ev.latlng.lng,"punkt z mapy")});if(o.pos)o.set(o.pos.lat,o.pos.lon,"punkt z mapy")},
+      function(){$(x+"MapNote").textContent="Mapa wymaga połączenia z internetem. Bez zasięgu użyj przycisku „Użyj mojej pozycji”."})});
+  return o;
+}
+function pError(m){var e=$("pErr");e.textContent=m||"";e.hidden=!m}
+function closePform(){$("pform").hidden=true;$("pName").value="";pError("");PICK.p.reset();$("pMapBox").hidden=true;renderPlaces()}
+function submitP(ev){
+  ev.preventDefault();var name=$("pName").value.trim(),pos=PICK.p.pos;
+  if(!name)return pError("Podaj nazwę miejsca.");
+  if(!pos)return pError("Wybierz punkt: pozycja z GPS albo punkt na mapie.");
+  var p={id:"p"+Date.now().toString(36),name:name,lat:pos.lat,lon:pos.lon},a=loadPlaces();a.push(p);
+  if(!savePlaces(a))return pError("Nie udało się zapisać miejsca: przeglądarka zablokowała pamięć lokalną.");
+  closePform();fillSaved();selectPlace(p);
+}
+function fillSaved(){var s=$("jSaved");s.textContent="";var o=document.createElement("option");o.value="";o.textContent="— inne, wskażę poniżej —";s.appendChild(o);
+  loadPlaces().forEach(function(p){var q=document.createElement("option");q.value=p.id;q.textContent=p.name;s.appendChild(q)})}
 if(typeof document!=="undefined"){
   fillInputs(loadP());
-  $("apply").addEventListener("click",function(){var p=readInputs();saveP(p);fillInputs(p);render()});
-  $("reset").addEventListener("click",function(){saveP(DEFAULTS);fillInputs(DEFAULTS);render()});
-  load();
+  $("apply").addEventListener("click",function(){var p=readInputs();saveP(p);fillInputs(p);render();renderPlaces()});
+  $("reset").addEventListener("click",function(){saveP(DEFAULTS);fillInputs(DEFAULTS);render();renderPlaces()});
+  picker("p","Dotknij mapy w miejscu, dla którego chcesz prognozę.");
+  $("pAddBtn").addEventListener("click",function(){$("pform").hidden=false;renderPlaces();$("pName").focus()});
+  $("pCancel").addEventListener("click",closePform);$("pform").addEventListener("submit",submitP);
+  renderPlaces();load();loadAll();
 }
 
 /* ---------- Dziennik zbiorów ---------- */
 var JKEY="grzybownik.journal",SP=[["borowik","Borowik"],["podgrzybek","Podgrzybek"],["kozlarz","Koźlarz"],["kurka","Kurka"]];
-var jPos=null,jMap=null,jMarker=null,armed=null;
+var armed=null;
 function loadJ(){try{var a=JSON.parse(localStorage.getItem(JKEY)||"[]");return Array.isArray(a)?a:[]}catch(e){return[]}}
 function saveJ(a){try{localStorage.setItem(JKEY,JSON.stringify(a));return true}catch(e){return false}}
 function addDays(s,n){var d=new Date(s+"T12:00:00Z");d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
@@ -294,29 +392,6 @@ function fillWeather(id){
   }).catch(function(){});
 }
 function syncPending(){var p=loadJ().filter(function(x){return !x.wx}),i=0;(function next(){if(i<p.length)fillWeather(p[i++].id).then(next)})()}
-function setPos(lat,lon,src){jPos={lat:Math.round(lat*1e5)/1e5,lon:Math.round(lon*1e5)/1e5};$("jLoc").textContent=fmt(jPos.lat,5)+"°N, "+fmt(jPos.lon,5)+"°E ("+src+")";
-  if(jMap&&window.L){if(jMarker)jMap.removeLayer(jMarker);jMarker=L.circleMarker([jPos.lat,jPos.lon],{radius:9,weight:3,color:"#24382c",fillColor:"#9a5a2b",fillOpacity:1}).addTo(jMap)}}
-function useGps(){
-  if(!navigator.geolocation){$("jLoc").textContent="Ta przeglądarka nie udostępnia pozycji. Wskaż punkt na mapie.";return}
-  $("jLoc").textContent="Ustalam pozycję…";
-  navigator.geolocation.getCurrentPosition(function(p){setPos(p.coords.latitude,p.coords.longitude,"GPS, dokładność ok. "+Math.round(p.coords.accuracy)+" m");if(jMap)jMap.setView([jPos.lat,jPos.lon],14)},
-    function(err){$("jLoc").textContent=err.code===1?"Brak zgody na dostęp do pozycji. Włącz ją w ustawieniach przeglądarki albo wskaż punkt na mapie.":"Nie udało się ustalić pozycji. Spróbuj ponownie na otwartym terenie albo wskaż punkt na mapie."},
-    {enableHighAccuracy:true,timeout:20000,maximumAge:60000});
-}
-function openMap(){
-  $("mapBox").hidden=false;
-  if(jMap){jMap.invalidateSize();return}
-  function init(){jMap=L.map("map").setView(jPos?[jPos.lat,jPos.lon]:[LAT,LON],jPos?14:11);
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,attribution:"© OpenStreetMap"}).addTo(jMap);
-    jMap.on("click",function(ev){setPos(ev.latlng.lat,ev.latlng.lng,"punkt z mapy")});if(jPos)setPos(jPos.lat,jPos.lon,"punkt z mapy")}
-  if(window.L){init();return}
-  $("mapNote").textContent="Ładuję mapę…";
-  var css=document.createElement("link");css.rel="stylesheet";css.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";document.head.appendChild(css);
-  var s=document.createElement("script");s.src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-  s.onload=function(){$("mapNote").textContent="Dotknij mapy w miejscu zbioru.";init()};
-  s.onerror=function(){$("mapNote").textContent="Mapa wymaga połączenia z internetem. Bez zasięgu użyj przycisku „Użyj mojej pozycji”."};
-  document.head.appendChild(s);
-}
 function buildSpecies(){var box=$("jSpecies");box.textContent="";SP.forEach(function(s){
   var row=document.createElement("div");row.className="seg";row.setAttribute("role","radiogroup");row.setAttribute("aria-label",s[1]);
   var name=document.createElement("span");name.textContent=s[1];name.style.cssText="border:0;background:none;text-align:left;padding:0";row.appendChild(name);
@@ -328,12 +403,12 @@ function submitJ(ev){
   ev.preventDefault();var date=$("jDate").value;
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return jError("Podaj datę wyjazdu.");
   if(date>todayStr())return jError("Data nie może być z przyszłości.");
-  if(!jPos)return jError("Wybierz lokalizację: pozycja z GPS albo punkt na mapie.");
+  if(!PICK.j.pos)return jError("Wybierz lokalizację: pozycja z GPS albo punkt na mapie.");
   var a={};SP.forEach(function(s){var c=document.querySelector('input[name="a_'+s[0]+'"]:checked');a[s[0]]=c?+c.value:0});
-  var e={id:Date.now().toString(36),date:date,place:$("jPlace").value.trim(),lat:jPos.lat,lon:jPos.lon,a:a,note:$("jNote").value.trim(),wx:null};
+  var e={id:Date.now().toString(36),date:date,place:$("jPlace").value.trim(),lat:PICK.j.pos.lat,lon:PICK.j.pos.lon,a:a,note:$("jNote").value.trim(),wx:null};
   var all=loadJ();all.push(e);all.sort(function(x,y){return x.date<y.date?1:x.date>y.date?-1:(x.id<y.id?1:-1)});
   if(!saveJ(all))return jError("Nie udało się zapisać wpisu: przeglądarka zablokowała pamięć lokalną.");
-  jError("");$("jPlace").value="";$("jNote").value="";SP.forEach(function(s){$("a_"+s[0]+"_0").checked=true});
+  jError("");$("jPlace").value="";$("jNote").value="";SP.forEach(function(s){$("a_"+s[0]+"_0").checked=true});$("jSaved").value="";
   renderJ();fillWeather(e.id);
 }
 function renderJ(){
@@ -370,10 +445,12 @@ function exportJ(){
   catch(e){info.textContent="Nie udało się zapisać pliku w tej przeglądarce."}
 }
 function showView(){var j=location.hash==="#dziennik";$("viewJ").hidden=!j;$("viewW").hidden=j;$("tabJ").className=j?"on":"";$("tabW").className=j?"":"on";
-  if(j&&jMap)jMap.invalidateSize();window.scrollTo(0,0)}
+  if(j&&PICK.j.map)PICK.j.map.invalidateSize();if(!j&&PICK.p.map)PICK.p.map.invalidateSize();window.scrollTo(0,0)}
 if(typeof document!=="undefined"){
   buildSpecies();$("jDate").value=todayStr();$("jDate").max=todayStr();
-  $("jGps").addEventListener("click",useGps);$("jPick").addEventListener("click",openMap);
+  picker("j","Dotknij mapy w miejscu zbioru.");fillSaved();
+  $("jSaved").addEventListener("change",function(){var id=this.value,p=loadPlaces().filter(function(x){return x.id===id})[0];
+    if(p){PICK.j.set(p.lat,p.lon,"zapisane miejsce");$("jPlace").value=p.name;if(PICK.j.map)PICK.j.map.setView([p.lat,p.lon],13)}});
   $("jform").addEventListener("submit",submitJ);$("jExport").addEventListener("click",exportJ);
   window.addEventListener("hashchange",showView);window.addEventListener("online",syncPending);
   showView();renderJ();syncPending();
