@@ -94,6 +94,8 @@ textarea{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border
 .prow:first-child{border-top:0;padding-top:0}
 .prow .pname{flex:1;min-width:0;text-align:left;border:0;background:none;padding:6px 0;font-weight:600;overflow-wrap:anywhere}
 .prow .pname.on::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--moss);margin-right:8px}
+.prow .pname small{display:block;font-weight:400;color:var(--mute);font-size:.76rem}
+.leaflet-control-layers label{font-size:.85rem;color:#1c2620}
 .prow .ps{font-weight:700;min-width:2.2rem;text-align:right}
 .prow .del{padding:6px 10px;font-size:.8rem}
 select{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
@@ -123,11 +125,18 @@ select{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border-r
     <label for="pName">Nazwa miejsca</label><input id="pName" type="text" maxlength="40" placeholder="np. las za Brochowem" autocomplete="off">
     <div class="row"><button type="button" id="pGps">Użyj mojej pozycji</button><button type="button" id="pPick">Wskaż na mapie</button></div>
     <p class="note num" id="pLoc">Nie wybrano punktu.</p>
-    <div id="pMapBox" hidden><div id="pMap" class="map"></div><p class="note" id="pMapNote">Dotknij mapy w miejscu, dla którego chcesz prognozę.</p></div>
+    <div id="pMapBox" hidden><div id="pMap" class="map"></div><p class="note" id="pMapNote">Dotknij mapy w miejscu, dla którego chcesz prognozę.</p><p class="note">Warstwy leśne włączysz ikoną w rogu mapy; drzewostany widać po przybliżeniu. Kolory: brąz = sosna, fiolet = świerk, szary = dąb, żółty = buk i grab, zielony = olsza, turkus = brzoza, róż = osika i topola. Ciemniejszy odcień = starszy drzewostan.</p></div>
     <p class="note err-text" id="pErr" hidden></p>
     <div class="row"><button class="primary" type="submit">Zapisz miejsce</button><button type="button" id="pCancel">Anuluj</button></div>
   </form>
   <p class="note">Liczba przy miejscu to wskaźnik na dziś. Dotknij nazwy, żeby zobaczyć pełną prognozę. Miejsca oddalone o kilka kilometrów mają zwykle prawie ten sam wynik, bo model pogody ma rozdzielczość rzędu kilku kilometrów.</p>
+</section>
+
+<section>
+  <h2>Drzewostan w tym miejscu</h2>
+  <p class="verdict" id="stMain" style="margin:0 0 12px;font-size:1rem">Sprawdzam…</p>
+  <dl id="stParts"></dl>
+  <p class="note">Gatunek panujący, wiek i typ siedliska z Banku Danych o Lasach. Ocena przydatności dla gatunków grzybów to reguły robocze, niezależne od wskaźnika pogodowego. Dane nie pokazują domieszek, np. brzóz w drzewostanie sosnowym.</p>
 </section>
 
 <section>
@@ -173,7 +182,7 @@ select{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border-r
     <div><span class="lab">Lokalizacja</span>
       <div class="row"><button type="button" id="jGps">Użyj mojej pozycji</button><button type="button" id="jPick">Wskaż na mapie</button></div>
       <p class="note num" id="jLoc">Nie wybrano punktu.</p>
-      <div id="jMapBox" hidden><div id="jMap" class="map"></div><p class="note" id="jMapNote">Dotknij mapy w miejscu zbioru.</p></div>
+      <div id="jMapBox" hidden><div id="jMap" class="map"></div><p class="note" id="jMapNote">Dotknij mapy w miejscu zbioru.</p><p class="note">Warstwy leśne włączysz ikoną w rogu mapy; drzewostany widać po przybliżeniu. Kolory: brąz = sosna, fiolet = świerk, szary = dąb, żółty = buk i grab, zielony = olsza, turkus = brzoza, róż = osika i topola. Ciemniejszy odcień = starszy drzewostan.</p></div>
     </div>
     <div><span class="lab">Obfitość: 0 = nic, 5 = wysyp. Wyjazd bez zbiorów też zapisz.</span><div id="jSpecies"></div></div>
     <label for="jNote">Notatka</label><textarea id="jNote" rows="2" maxlength="300"></textarea>
@@ -217,6 +226,7 @@ function loadPlaces(){var a=[];try{a=JSON.parse(localStorage.getItem(PKEY)||"[]"
 function savePlaces(a){try{localStorage.setItem(PKEY,JSON.stringify(a.filter(function(p){return p.id!=="home"})));return true}catch(e){return false}}
 function curPlace(){var id=null;try{id=localStorage.getItem(SKEY)}catch(e){}var a=loadPlaces();return a.filter(function(p){return p.id===id})[0]||a[0]}
 var PLACE=curPlace();
+var SP=[["borowik","Borowik"],["podgrzybek","Podgrzybek"],["kozlarz","Koźlarz"],["kurka","Kurka"]];
 var SPECIES=[["Kurka (pieprznik jadalny)",6,10],["Koźlarze",6,10],["Borowik szlachetny",7,11],["Podgrzybek brunatny",8,11]];
 var $=function(id){return document.getElementById(id)};
 function loadP(){var p={};for(var k in DEFAULTS)p[k]=DEFAULTS[k];try{var s=JSON.parse(localStorage.getItem(KEY)||"{}");for(var k2 in DEFAULTS)if(typeof s[k2]==="number"&&isFinite(s[k2]))p[k2]=s[k2]}catch(e){}return p}
@@ -293,7 +303,7 @@ function fetchDays(p){
 function showPlace(r){DAYS=r.days;$("error").hidden=true;
   $("stamp").textContent=r.stale?"Brak połączenia. Pokazuję dane zapisane "+stampTime(r.at):"Dane pogodowe: Open-Meteo, pobrane "+stampTime(r.at);render()}
 function load(){
-  var p=PLACE;$("place").textContent=p.name+" · "+fmt(p.lat,2)+"°N "+fmt(p.lon,2)+"°E";
+  var p=PLACE;$("place").textContent=p.name+" · "+fmt(p.lat,2)+"°N "+fmt(p.lon,2)+"°E";showStand();
   if(DAYSBY[p.id]){showPlace(DAYSBY[p.id]);return}
   DAYS=null;$("error").hidden=true;$("score").textContent="–";$("verdict").textContent="Pobieram dane…";
   fetchDays(p).then(function(r){DAYSBY[p.id]=r;renderPlaces();if(p.id===PLACE.id)showPlace(r)})
@@ -307,6 +317,7 @@ function renderPlaces(){
   a.forEach(function(p){
     var row=document.createElement("div");row.className="prow";
     var b=document.createElement("button");b.type="button";b.className="pname"+(p.id===PLACE.id?" on":"");b.textContent=p.name;
+    var stp=stCache()[p.lat+","+p.lon];if(stp&&(stp.tree||stp.site)){var sm=document.createElement("small");sm.textContent=stText(stp);b.appendChild(sm)}
     b.addEventListener("click",function(){selectPlace(p)});row.appendChild(b);
     var s=document.createElement("span"),r=DAYSBY[p.id],e=r?evaluate(r.days,tIndex(r.days),P):null;s.className="ps num";
     s.textContent=e?e.score:"–";if(e)s.style.color="var("+band(e.score)[1]+")";row.appendChild(s);
@@ -319,6 +330,53 @@ function renderPlaces(){
   $("pAddBtn").hidden=a.length>=12||!$("pform").hidden;
 }
 
+/* ---------- Drzewostan (Bank Danych o Lasach) ---------- */
+var BDL="https://mapserver.bdl.lasy.gov.pl/arcgis/",STKEY="grzybownik.stands";
+var TREE={SO:"sosna","ŚW":"świerk",JD:"jodła",MD:"modrzew",DG:"daglezja",DB:"dąb",BK:"buk",GB:"grab",BRZ:"brzoza",OL:"olsza",OS:"osika",TP:"topola",JS:"jesion",JW:"jawor",AK:"robinia",LP:"lipa",KL:"klon",WZ:"wiąz"};
+var SITE={Bs:"bór suchy","Bśw":"bór świeży",Bw:"bór wilgotny",Bb:"bór bagienny","BMśw":"bór mieszany świeży",BMw:"bór mieszany wilgotny",BMb:"bór mieszany bagienny","LMśw":"las mieszany świeży",LMw:"las mieszany wilgotny",LMb:"las mieszany bagienny","Lśw":"las świeży",Lw:"las wilgotny",Ol:"ols",OlJ:"ols jesionowy","Lł":"las łęgowy"};
+/*STAND-START*/
+var SUIT={
+  borowik:{site:{"BMśw":2,"LMśw":2,"Bśw":2,BMw:1,LMw:1,"Lśw":1,Bw:1},tree:{SO:2,"ŚW":2,DB:2,BK:2,JD:1,BRZ:1,GB:1,MD:1},age:30},
+  podgrzybek:{site:{"Bśw":2,"BMśw":2,BMw:2,Bw:1,"LMśw":1,LMw:1},tree:{SO:2,"ŚW":2,JD:1,MD:1,DB:1,BK:1},age:25},
+  kozlarz:{site:{"BMśw":2,"LMśw":2,"Bśw":2,BMw:2,LMw:2,"Lśw":1,Bw:1,Lw:1},tree:{BRZ:2,OS:2,TP:2,GB:2,SO:1,DB:1},age:10},
+  kurka:{site:{"Bśw":2,"BMśw":2,"LMśw":1,BMw:1,Bs:1,Bw:1},tree:{SO:2,"ŚW":2,DB:1,BK:1,JD:1},age:20}};
+function suit(k,st){var R=SUIT[k],a=R.site[st.site]||0,t=R.tree[st.tree]||0,young=st.age!=null&&st.age<R.age,tot=a+t;
+  return[tot>=4&&!young?"dobre":tot>=2?"przeciętne":"słabe",
+    young&&tot>=2?"drzewostan młody, poniżej "+R.age+" lat":tot>=4?"gatunek drzew i siedlisko pasują":tot>=2?(a>=t?"pasuje głównie siedlisko":"pasuje głównie gatunek drzew"):"gatunek drzew i siedlisko nie pasują"]}
+/*STAND-END*/
+function stCache(){try{var c=JSON.parse(localStorage.getItem(STKEY)||"{}");return c&&typeof c==="object"?c:{}}catch(e){return{}}}
+function stText(st){if(!st||(!st.tree&&!st.site))return"brak opisu w Banku Danych o Lasach";
+  return(st.tree?(TREE[st.tree]||st.tree)+(st.age!=null?" "+st.age+" lat":""):"drzewostan bez opisu")+(st.site?" · "+(SITE[st.site]||st.site):"")}
+function jsonp(url){return new Promise(function(res,rej){
+  var cb="__bdl"+Date.now().toString(36)+Math.floor(Math.random()*1e6),el=document.createElement("script"),t=setTimeout(function(){done();rej(new Error("timeout"))},15000);
+  function done(){clearTimeout(t);window[cb]=function(){};el.remove()}
+  window[cb]=function(d){done();res(d)};el.onerror=function(){done();rej(new Error("sieć"))};el.src=url+"&callback="+cb;document.head.appendChild(el)})}
+function getJson(url){return fetch(url).then(function(r){if(!r.ok)throw new Error("HTTP");return r.json()}).catch(function(){return jsonp(url)})}
+function bdlQ(svc,layer,lat,lon){
+  return getJson(BDL+"rest/services/"+svc+"/MapServer/"+layer+"/query?geometry="+lon+","+lat+"&geometryType=esriGeometryPoint&inSR=4326&outFields=*&returnGeometry=false&f=json")
+    .then(function(j){if(!j||j.error||!j.features)throw new Error("BDL");return j.features.map(function(f){return f.attributes||{}})})}
+function tr(v){return v==null?"":String(v).trim()}
+function standFor(lat,lon){
+  var k=lat+","+lon,c=stCache();if(c[k])return Promise.resolve(c[k]);
+  var st={tree:"",age:null,cls:"",site:"",lp:null};
+  return bdlQ("WMS_BDL_mapa_drzewostanow",11,lat,lon).then(function(a){if(a.length){st.lp=true;return a}
+      return bdlQ("WMS_BDL_mapa_drzewostanow",12,lat,lon).then(function(b){if(b.length)st.lp=false;return b})})
+    .then(function(a){a.sort(function(x,y){return(x.storey_rank_order||9)-(y.storey_rank_order||9)||(parseInt(y.part_cd,10)||0)-(parseInt(x.part_cd,10)||0)});
+      var f=a[0];if(f){st.tree=tr(f.species_cd||f.gat_grp).split(".")[0];st.age=f.species_age==null?null:+f.species_age;st.cls=tr(f.age_class)}
+      return bdlQ("WMS_BDL_mapa_siedlisk",7,lat,lon)})
+    .then(function(a){if(a.length)st.site=tr(a[0].site_type_cd);st.at=Date.now();var c2=stCache();c2[k]=st;try{localStorage.setItem(STKEY,JSON.stringify(c2))}catch(e){}return st});
+}
+function showStand(){
+  var p=PLACE,main=$("stMain"),dl=$("stParts");main.textContent="Sprawdzam…";dl.textContent="";
+  standFor(p.lat,p.lon).then(function(st){if(p.id!==PLACE.id)return;renderPlaces();
+    if(!st.tree&&!st.site){main.textContent="Ten punkt leży poza lasem opisanym w Banku Danych o Lasach.";return}
+    main.textContent=stText(st)+(st.cls?" ("+st.cls+" klasa wieku)":"")+(st.lp===false?" · las poza Lasami Państwowymi":"");
+    SP.forEach(function(x){var r=suit(x[0],st),dt=document.createElement("dt"),dd=document.createElement("dd"),sm=document.createElement("small");
+      dt.textContent=x[1];dd.textContent=r[0];sm.textContent=r[1];dd.appendChild(sm);dl.appendChild(dt);dl.appendChild(dd)});
+  }).catch(function(){if(p.id===PLACE.id)main.textContent="Nie udało się pobrać danych o drzewostanie. Spróbuj ponownie przy połączeniu z internetem."});
+}
+function loadStands(){var a=loadPlaces(),i=0;(function next(){if(i>=a.length){renderPlaces();return}var p=a[i++];standFor(p.lat,p.lon).catch(function(){}).then(next)})()}
+
 /* Wybór punktu: GPS albo mapa. Używany w miejscach (prefiks p) i w dzienniku (prefiks j). */
 var PICK={};
 function leaflet(ok,fail){
@@ -326,6 +384,7 @@ function leaflet(ok,fail){
   var css=document.createElement("link");css.rel="stylesheet";css.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";document.head.appendChild(css);
   var s=document.createElement("script");s.src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";s.onload=ok;s.onerror=fail;document.head.appendChild(s);
 }
+function wms(svc,layers){return L.tileLayer.wms(BDL+"services/"+svc+"/MapServer/WMSServer",{layers:layers,format:"image/png",transparent:true,version:"1.3.0",opacity:.6,maxZoom:18,attribution:"© Bank Danych o Lasach"})}
 function picker(x,hint){
   var o={pos:null,map:null,marker:null};PICK[x]=o;
   o.set=function(lat,lon,src){o.pos={lat:Math.round(lat*1e5)/1e5,lon:Math.round(lon*1e5)/1e5};$(x+"Loc").textContent=fmt(o.pos.lat,5)+"°N, "+fmt(o.pos.lon,5)+"°E ("+src+")";
@@ -344,7 +403,10 @@ function picker(x,hint){
     leaflet(function(){if(o.map)return;$(x+"MapNote").textContent=hint;
       o.map=L.map(x+"Map").setView(o.pos?[o.pos.lat,o.pos.lon]:[PLACE.lat,PLACE.lon],o.pos?14:11);
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,attribution:"© OpenStreetMap"}).addTo(o.map);
-      o.map.on("click",function(ev){o.set(ev.latlng.lat,ev.latlng.lng,"punkt z mapy")});if(o.pos)o.set(o.pos.lat,o.pos.lon,"punkt z mapy")},
+      var ov={"Drzewostany (gatunek, wiek)":wms("WMS_BDL_mapa_drzewostanow","1,0"),"Siedliska leśne":wms("WMS_BDL_mapa_siedlisk","0"),"Okresowe zakazy wstępu":wms("WMS_zakazy_wstepu_do_lasu","3")};
+      ov["Drzewostany (gatunek, wiek)"].addTo(o.map);ov["Okresowe zakazy wstępu"].addTo(o.map);L.control.layers(null,ov).addTo(o.map);
+      o.map.on("click",function(ev){o.set(ev.latlng.lat,ev.latlng.lng,"punkt z mapy");var q=o.pos;
+        standFor(q.lat,q.lon).then(function(st){if(o.pos===q)$(x+"Loc").textContent+=" · "+stText(st)}).catch(function(){})});if(o.pos)o.set(o.pos.lat,o.pos.lon,"punkt z mapy")},
       function(){$(x+"MapNote").textContent="Mapa wymaga połączenia z internetem. Bez zasięgu użyj przycisku „Użyj mojej pozycji”."})});
   return o;
 }
@@ -367,11 +429,11 @@ if(typeof document!=="undefined"){
   picker("p","Dotknij mapy w miejscu, dla którego chcesz prognozę.");
   $("pAddBtn").addEventListener("click",function(){$("pform").hidden=false;renderPlaces();$("pName").focus()});
   $("pCancel").addEventListener("click",closePform);$("pform").addEventListener("submit",submitP);
-  renderPlaces();load();loadAll();
+  renderPlaces();load();loadAll();loadStands();
 }
 
 /* ---------- Dziennik zbiorów ---------- */
-var JKEY="grzybownik.journal",SP=[["borowik","Borowik"],["podgrzybek","Podgrzybek"],["kozlarz","Koźlarz"],["kurka","Kurka"]];
+var JKEY="grzybownik.journal";
 var armed=null;
 function loadJ(){try{var a=JSON.parse(localStorage.getItem(JKEY)||"[]");return Array.isArray(a)?a:[]}catch(e){return[]}}
 function saveJ(a){try{localStorage.setItem(JKEY,JSON.stringify(a));return true}catch(e){return false}}
@@ -391,7 +453,11 @@ function fillWeather(id){
     saveJ(all);renderJ();
   }).catch(function(){});
 }
-function syncPending(){var p=loadJ().filter(function(x){return !x.wx}),i=0;(function next(){if(i<p.length)fillWeather(p[i++].id).then(next)})()}
+function fillStand(id){
+  var e=loadJ().filter(function(x){return x.id===id})[0];if(!e||e.st)return Promise.resolve();
+  return standFor(e.lat,e.lon).then(function(st){var all=loadJ();all.forEach(function(x){if(x.id===id)x.st={tree:st.tree,age:st.age,site:st.site}});saveJ(all);renderJ()}).catch(function(){});
+}
+function syncPending(){var p=loadJ().filter(function(x){return !x.wx||!x.st}),i=0;(function next(){if(i<p.length){var id=p[i++].id;fillWeather(id).then(function(){return fillStand(id)}).then(next)}})()}
 function buildSpecies(){var box=$("jSpecies");box.textContent="";SP.forEach(function(s){
   var row=document.createElement("div");row.className="seg";row.setAttribute("role","radiogroup");row.setAttribute("aria-label",s[1]);
   var name=document.createElement("span");name.textContent=s[1];name.style.cssText="border:0;background:none;text-align:left;padding:0";row.appendChild(name);
@@ -409,7 +475,7 @@ function submitJ(ev){
   var all=loadJ();all.push(e);all.sort(function(x,y){return x.date<y.date?1:x.date>y.date?-1:(x.id<y.id?1:-1)});
   if(!saveJ(all))return jError("Nie udało się zapisać wpisu: przeglądarka zablokowała pamięć lokalną.");
   jError("");$("jPlace").value="";$("jNote").value="";SP.forEach(function(s){$("a_"+s[0]+"_0").checked=true});$("jSaved").value="";
-  renderJ();fillWeather(e.id);
+  renderJ();fillWeather(e.id).then(function(){return fillStand(e.id)});
 }
 function renderJ(){
   var all=loadJ(),list=$("jList");list.textContent="";
@@ -423,7 +489,7 @@ function renderJ(){
     var found=SP.filter(function(s){return e.a[s[0]]>0}).map(function(s){return s[1]+" "+e.a[s[0]]+"/5"});
     var f=document.createElement("div");f.textContent=found.length?found.join(" · "):"Nic nie znaleziono";d.appendChild(f);
     var m=document.createElement("div");m.className="meta num";
-    m.textContent=fmt(e.lat,5)+"°N, "+fmt(e.lon,5)+"°E · "+(e.wx?"opad 26 dni: "+fmt(e.wx.p26,0)+" mm, temp. 20 dni: "+fmt(e.wx.t20,1)+"°C":"pogoda zostanie dopisana po połączeniu z internetem");d.appendChild(m);
+    m.textContent=fmt(e.lat,5)+"°N, "+fmt(e.lon,5)+"°E · "+(e.wx?"opad 26 dni: "+fmt(e.wx.p26,0)+" mm, temp. 20 dni: "+fmt(e.wx.t20,1)+"°C":"pogoda zostanie dopisana po połączeniu z internetem")+(e.st&&(e.st.tree||e.st.site)?" · "+stText(e.st):"");d.appendChild(m);
     if(e.note){var n=document.createElement("div");n.className="meta";n.textContent=e.note;d.appendChild(n)}
     var b=document.createElement("button");b.type="button";b.textContent=armed===e.id?"Potwierdź usunięcie":"Usuń";
     b.addEventListener("click",function(){if(armed===e.id){saveJ(loadJ().filter(function(x){return x.id!==e.id}));armed=null}else armed=e.id;renderJ()});
@@ -432,8 +498,8 @@ function renderJ(){
 function toCsv(all){
   function q(v){v=v==null?"":String(v);return /[";\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
   function n(v){return v==null?"":String(v).replace(".",",")}
-  var rows=[["data","miejsce","szerokosc","dlugosc"].concat(SP.map(function(s){return s[0]}),["wskaznik","opad_26d_mm","temp_20d_C","tmin_10d_C","notatka"])];
-  all.forEach(function(e){var w=e.wx||{};rows.push([e.date,e.place,n(e.lat),n(e.lon)].concat(SP.map(function(s){return e.a[s[0]]}),[n(w.score),n(w.p26),n(w.t20),n(w.tmin10),e.note]))});
+  var rows=[["data","miejsce","szerokosc","dlugosc"].concat(SP.map(function(s){return s[0]}),["wskaznik","opad_26d_mm","temp_20d_C","tmin_10d_C","drzewa","wiek_drzew","siedlisko","notatka"])];
+  all.forEach(function(e){var w=e.wx||{},z=e.st||{};rows.push([e.date,e.place,n(e.lat),n(e.lon)].concat(SP.map(function(s){return e.a[s[0]]}),[n(w.score),n(w.p26),n(w.t20),n(w.tmin10),z.tree,z.age,z.site,e.note]))});
   return rows.map(function(r){return r.map(q).join(";")}).join("\r\n");
 }
 function exportJ(){
