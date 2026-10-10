@@ -131,12 +131,14 @@ select{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border-r
 
 <section>
   <h2>Mapa: gdzie szukać</h2>
-  <div class="chips" id="spSel" role="group" aria-label="Przydatność lasu dla gatunku"></div>
+  <div class="chips" id="spSel" role="group" aria-label="Gatunek grzyba"></div>
+  <div class="chips" id="modeSel" role="group" aria-label="Co pokazują kolory"></div>
+  <div class="params" id="dayRow" style="grid-template-columns:auto 1fr;margin-bottom:10px" hidden><label for="daySel">Dzień</label><select id="daySel"></select></div>
   <div id="mMap" class="map" style="height:380px;margin-top:0"></div>
-  <div class="legend"><span><b style="background:#1f5a3a"></b>bardzo dobre</span><span><b style="background:#6fae5c"></b>dobre</span><span><b style="background:#e3c256"></b>przeciętne</span><span><b style="background:#b5b8b0"></b>słabe</span><span><b style="background:#a8322a"></b>zakaz zbioru</span></div>
+  <div class="legend"><span><b style="background:#1f5a3a"></b>bardzo dobre</span><span><b style="background:#6fae5c"></b>dobre</span><span><b style="background:#e3c256"></b>średnie</span><span><b style="background:#b5b8b0"></b>słabe</span><span><b style="background:#a8322a"></b>zakaz zbioru</span></div>
   <p class="note" id="suitNote"></p>
   <p class="note" id="mNote">Ładuję mapę…</p>
-  <p class="note">Kolor wydzielenia to przydatność drzewostanu dla wybranego gatunku grzyba według reguł roboczych (gatunek panujący, wiek, siedlisko). To nie jest prawdopodobieństwo i nie zależy od pogody.</p>
+  <p class="note">Tryb „Szansa” łączy przydatność drzewostanu (gatunek panujący, wiek, siedlisko) ze wskaźnikiem pogodowym dla wybranego dnia: najlepszy drzewostan dostaje pełny wskaźnik pogody, słabszy jego część. Tryb „Sam drzewostan” pokazuje tylko las, bez pogody. W obu przypadkach to klasy według reguł roboczych, a nie zmierzone prawdopodobieństwo.</p>
   <p class="note">Warstwy leśne włączysz ikoną w rogu mapy; drzewostany widać po przybliżeniu. Kolory: brąz = sosna, fiolet = świerk, szary = dąb, żółty = buk i grab, zielony = olsza, turkus = brzoza, róż = osika i topola. Ciemniejszy odcień = starszy drzewostan.</p>
 </section>
 
@@ -460,7 +462,9 @@ function drawMarkers(){
     m.on("click",function(){selectPlace(p)});MMK.push(m)});
 }
 /* Przydatność wydzieleń dla wybranego gatunku grzyba. */
-var SUITC={"bardzo dobre":"#1f5a3a","dobre":"#6fae5c","przeciętne":"#e3c256","słabe":"#b5b8b0"},BANC="#a8322a",SUITSP="borowik",SUITL=null,SUITR=null,SUITF=[],suitSeq=0,suitT=null;
+var MAPMODE="szansa",MAPDAY=0,SUITW=null,SUITWD=null,SUITWSRC="",MWX={},SUITFRAC={"bardzo dobre":1,"dobre":.75,"przeciętne":.45,"słabe":.15};
+try{var mv=localStorage.getItem("grzybownik.mapmode");if(mv==="las"||mv==="szansa")MAPMODE=mv}catch(e){}
+var SUITC={"bardzo dobre":"#1f5a3a","dobre":"#6fae5c","przeciętne":"#e3c256","umiarkowane":"#e3c256","słabe":"#b5b8b0"},BANC="#a8322a",SUITSP="borowik",SUITL=null,SUITR=null,SUITF=[],suitSeq=0,suitT=null;
 try{var sv=localStorage.getItem("grzybownik.suitsp");if(sv!==null&&(sv===""||SUIT[sv]))SUITSP=sv}catch(e){}
 function spName(k){for(var i=0;i<SP.length;i++)if(SP[i][0]===k)return SP[i][1];return k}
 function kwSt(a,lp){
@@ -476,22 +480,56 @@ function bdlArea(layer,b,off){
   return next();
 }
 function bdlBoth(b,off){return bdlArea(5,b,off).then(function(a){return bdlArea(6,b,off).catch(function(){return{f:[],more:false}}).then(function(c){return{f:a.f.concat(c.f),more:a.more||c.more}})})}
+/* Pogoda dla widoku mapy: najbliższe zapisane miejsce do 12 km, inaczej środek mapy. */
+function mapWeather(){
+  var c=MM.getCenter(),kx=111.2*Math.cos(c.lat*Math.PI/180),best=null,bd=12;
+  loadPlaces().forEach(function(p){var r=DAYSBY[p.id];if(!r)return;var dy=(p.lat-c.lat)*111.2,dx=(p.lon-c.lng)*kx,d=Math.sqrt(dx*dx+dy*dy);if(d<=bd){bd=d;best={days:r.days,src:p.name}}});
+  if(best)return Promise.resolve(best);
+  var k=c.lat.toFixed(1)+","+c.lng.toFixed(1);if(MWX[k])return Promise.resolve({days:MWX[k],src:"środek mapy"});
+  return wxGet(+c.lat.toFixed(2),+c.lng.toFixed(2),"past_days=40&forecast_days=10",false).then(function(days){MWX[k]=days;return{days:days,src:"środek mapy"}});
+}
+function weatherAt(days){var i=Math.min(days.length-1,tIndex(days)+MAPDAY),e=evaluate(days,i,loadP());return{score:e?e.score:null,date:days[i].date}}
+function fillDays(){
+  var sel=$("daySel"),row=$("dayRow");row.hidden=MAPMODE!=="szansa"||!SUITWD;if(row.hidden)return;
+  var t=tIndex(SUITWD),n=Math.min(10,SUITWD.length-t);sel.textContent="";
+  for(var i=0;i<n;i++){var o=document.createElement("option"),d=SUITWD[t+i].date,e=evaluate(SUITWD,t+i,loadP());o.value=i;
+    o.textContent=(i===0?"dziś":i===1?"jutro":new Date(d+"T12:00:00").toLocaleDateString("pl-PL",{weekday:"long"}))+", "+dm(d)+(e?" · pogoda "+e.score:"");sel.appendChild(o)}
+  if(MAPDAY>=n)MAPDAY=0;sel.value=MAPDAY;
+}
+function refreshW(){
+  if(MAPMODE!=="szansa"||!MM){SUITW=null;fillDays();return Promise.resolve()}
+  return mapWeather().then(function(w){SUITWD=w.days;SUITWSRC=w.src;SUITW=weatherAt(w.days)}).catch(function(){SUITW=null;SUITWD=null}).then(fillDays);
+}
+/* Klasa wydzielenia: [etykieta, liczba 0–100 albo null, etykieta samego drzewostanu] */
+function chance(st){var lab=suit(SUITSP,st)[0];
+  if(MAPMODE==="szansa"&&SUITW&&SUITW.score!=null){var v=Math.round(SUITFRAC[lab]*SUITW.score);return[band(v)[0],v,lab]}
+  return[lab,null,lab]}
 function suitDraw(){
   if(!SUITL)return;SUITL.clearLayers();if(!SUITSP)return;
-  SUITF.forEach(function(f){var st=f.st,ban=st.park||st.res;if(!st.tree&&!ban)return;var lab=suit(SUITSP,st)[0],col=ban?BANC:SUITC[lab];
+  SUITF.forEach(function(f){var st=f.st,ban=st.park||st.res;if(!st.tree&&!ban)return;var lab=chance(st)[0],col=ban?BANC:SUITC[lab];
     L.polygon(f.rings,{renderer:SUITR,interactive:false,weight:.6,color:"#ffffff",opacity:.7,fillColor:col,fillOpacity:ban?.45:lab==="słabe"?.35:.62}).addTo(SUITL)});
 }
+function suitNote(more){
+  var n=SUITF.length,t=n?"Wydzieleń w widoku: "+n+(more?". Część pominięto, przybliż mapę.":"."):"W tym widoku nie ma lasów opisanych w Banku Danych o Lasach.";
+  if(MAPMODE==="szansa")t+=SUITW&&SUITW.score!=null?" Pogoda na "+dm(SUITW.date)+": wskaźnik "+SUITW.score+" ("+band(SUITW.score)[0]+"), dane dla: "+SUITWSRC+".":" Nie udało się pobrać pogody, kolory pokazują sam drzewostan.";
+  $("suitNote").textContent=t;
+}
+var suitMore=false;
+function mapRefresh(){if(!MM||!SUITL)return;refreshW().then(function(){suitDraw();if(SUITSP&&MM.getZoom()>=13)suitNote(suitMore)})}
 function suitLoad(){
   if(!MM||!SUITL)return;var note=$("suitNote"),seq=++suitSeq,z=MM.getZoom();
   if(!SUITSP){SUITF=[];suitDraw();note.textContent="";return}
-  if(z<13){SUITF=[];suitDraw();note.textContent="Przybliż mapę, żeby zobaczyć przydatność wydzieleń (widok kilku kilometrów).";return}
+  if(z<13){SUITF=[];suitDraw();note.textContent="Przybliż mapę, żeby zobaczyć kolory wydzieleń (widok kilku kilometrów).";return}
   var bb=MM.getBounds(),b=[bb.getWest(),bb.getSouth(),bb.getEast(),bb.getNorth()].map(function(v){return v.toFixed(5)});
   note.textContent="Pobieram wydzielenia…";
-  bdlBoth(b,z>=15?0.00005:z===14?0.00012:0.00025).then(function(r){if(seq!==suitSeq)return;SUITF=r.f;suitDraw();
-    note.textContent=r.f.length?"Wydzieleń w widoku: "+r.f.length+(r.more?". Część pominięto, przybliż mapę.":"."):"W tym widoku nie ma lasów opisanych w Banku Danych o Lasach."})
+  bdlBoth(b,z>=15?0.00005:z===14?0.00012:0.00025).then(function(r){if(seq!==suitSeq)return;SUITF=r.f;suitMore=r.more;
+      return refreshW().then(function(){if(seq!==suitSeq)return;suitDraw();suitNote(r.more)})})
     .catch(function(){if(seq===suitSeq)note.textContent="Nie udało się pobrać wydzieleń. Przesuń mapę albo spróbuj ponownie."});
 }
 function suitChips(){
+  var mb=$("modeSel");mb.textContent="";
+  [["szansa","Szansa: las i pogoda"],["las","Sam drzewostan"]].forEach(function(x){var b=document.createElement("button");b.type="button";b.textContent=x[1];b.setAttribute("aria-pressed",MAPMODE===x[0]?"true":"false");
+    b.addEventListener("click",function(){MAPMODE=x[0];try{localStorage.setItem("grzybownik.mapmode",MAPMODE)}catch(e){}suitChips();mapRefresh()});mb.appendChild(b)});
   var box=$("spSel");box.textContent="";
   SP.concat([["","Bez kolorów"]]).forEach(function(x){var b=document.createElement("button");b.type="button";b.textContent=x[1];b.setAttribute("aria-pressed",SUITSP===x[0]?"true":"false");
     b.addEventListener("click",function(){SUITSP=x[0];try{localStorage.setItem("grzybownik.suitsp",SUITSP)}catch(e){}suitChips();$("bestList").textContent="";if(SUITSP&&SUITF.length)suitDraw();else suitLoad()});box.appendChild(b)});
@@ -523,7 +561,8 @@ function mainMap(){
       t.textContent="Sprawdzam drzewostan…";b.type="button";b.textContent="Dodaj miejsce tutaj";box.appendChild(t);box.appendChild(b);
       L.popup().setLatLng(ev.latlng).setContent(box).openOn(MM);
       standFor(lat,lon).then(function(st){t.textContent=stText(st)+(st.park||st.res?". ZAKAZ ZBIORU ("+(st.park?"park narodowy":"rezerwat")+")":"");
-        if(SUITSP&&(st.tree||st.site)){var r=suit(SUITSP,st),l=document.createElement("div");l.style.marginTop="4px";l.textContent=spName(SUITSP)+": "+r[0]+" ("+r[1]+")";t.appendChild(l)}}).catch(function(){t.textContent="Nie udało się sprawdzić drzewostanu."});
+        if(SUITSP&&(st.tree||st.site)){var r=suit(SUITSP,st),l=document.createElement("div");l.style.marginTop="4px";var c=chance(st);
+          l.textContent=c[1]!=null?spName(SUITSP)+", "+dm(SUITW.date)+": ocena łączna "+c[1]+"/100 ("+c[0]+"). Drzewostan: "+r[0]+" ("+r[1]+"), pogoda: "+SUITW.score+"/100.":spName(SUITSP)+": "+r[0]+" ("+r[1]+")";t.appendChild(l)}}).catch(function(){t.textContent="Nie udało się sprawdzić drzewostanu."});
       b.addEventListener("click",function(){MM.closePopup();$("pform").hidden=false;renderPlaces();PICK.p.set(lat,lon,"punkt z mapy");$("pform").scrollIntoView({block:"center"});$("pName").focus()})});
     $("mNote").textContent="Kółka z liczbą to zapisane miejsca i wskaźnik pogodowy na dziś. Dotknij kółka, żeby wybrać miejsce, albo dowolnego lasu, żeby sprawdzić drzewostan i dodać nowe miejsce.";drawMarkers();
   },function(){$("mNote").textContent="Mapa wymaga połączenia z internetem."});
@@ -566,8 +605,9 @@ function fillSaved(){var s=$("jSaved");s.textContent="";var o=document.createEle
   loadPlaces().forEach(function(p){var q=document.createElement("option");q.value=p.id;q.textContent=p.name;s.appendChild(q)})}
 if(typeof document!=="undefined"){
   fillInputs(loadP());
-  $("apply").addEventListener("click",function(){var p=readInputs();saveP(p);fillInputs(p);render();renderPlaces()});
-  $("reset").addEventListener("click",function(){saveP(DEFAULTS);fillInputs(DEFAULTS);render();renderPlaces()});
+  $("apply").addEventListener("click",function(){var p=readInputs();saveP(p);fillInputs(p);render();renderPlaces();mapRefresh()});
+  $("reset").addEventListener("click",function(){saveP(DEFAULTS);fillInputs(DEFAULTS);render();renderPlaces();mapRefresh()});
+  $("daySel").addEventListener("change",function(){MAPDAY=+this.value||0;if(SUITWD){SUITW=weatherAt(SUITWD);suitDraw();suitNote(suitMore)}});
   picker("p","Dotknij mapy w miejscu, dla którego chcesz prognozę.");
   $("pAddBtn").addEventListener("click",function(){$("pform").hidden=false;renderPlaces();$("pName").focus()});
   $("pCancel").addEventListener("click",closePform);$("pform").addEventListener("submit",submitP);

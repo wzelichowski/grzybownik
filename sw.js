@@ -1,5 +1,5 @@
 /* Grzybownik: aplikacja otwiera się bez zasięgu; pliki własne zawsze najpierw z sieci, żeby aktualizacje docierały od razu. */
-const C = 'grzybownik-v8';
+const C = 'grzybownik-v9';
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(C).then(c => c.addAll(['./', 'manifest.webmanifest', 'icon.svg'])).then(() => self.skipWaiting()));
 });
